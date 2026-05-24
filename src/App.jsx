@@ -1,14 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
-
-// ── Storage abstraction ─────────────────────────────────────────────────────
-// Uses localStorage for web deployment (data stays in the user's browser).
-// If running inside a Claude artifact, swap the two lines below with:
-//   get: k => window.storage.get('rt-'+k).catch(()=>null).then(r=>r?r.value:null),
-//   set: (k,v) => window.storage.set('rt-'+k, String(v)).catch(()=>{}),
-const store = {
-  get: k => Promise.resolve(localStorage.getItem('rt-'+k)),
-  set: (k,v) => Promise.resolve(localStorage.setItem('rt-'+k, String(v))),
-};
+import { useState, useEffect, useMemo, useRef } from "react";
+import { supabase } from './supabase';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 const nowStr = () => new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'});
@@ -77,6 +68,8 @@ export default function App(){
   const [sales,setSales]   = useState([]);   // [{id,itemId,itemName,categoryId,listedPrice,soldPrice,actualFees,feeWasEstimated,moneyIn,postage,profit,date}]
   const [extraSpend,setExtraSpend] = useState(0);
   const [ready,setReady]   = useState(false);
+  const [userId,setUserId] = useState(null);
+  const saveTimer          = useRef(null);
 
   // Nav + tab UI
   const [tab,setTab]       = useState('inventory');
@@ -115,29 +108,56 @@ export default function App(){
   const [bundle,setBundle]     = useState([]);
   const [bundleIn,setBundleIn] = useState('');
 
-  // ── Load from storage ───────────────────────────────────────────────────────
+  // ── Init: sign in anonymously + load data from Supabase ────────────────────
   useEffect(()=>{
-    const load = async () => {
+    const init = async () => {
       try {
-        const [c,ca,it,sa,es] = await Promise.all(
-          ['cfg','cats','items','sales','extraspend'].map(k=>store.get(k))
-        );
-        if(c){ const p=JSON.parse(c); setCfg({...DEFAULTS,...p}); setCfgForm({...DEFAULTS,...p}); }
-        if(ca) setCats(JSON.parse(ca));
-        if(it) setItems(JSON.parse(it));
-        if(sa) setSales(JSON.parse(sa));
-        if(es) setExtraSpend(parseFloat(es)||0);
-      } catch{}
+        // Get existing session or create a new anonymous one
+        let { data:{ session } } = await supabase.auth.getSession();
+        if(!session){
+          const { data } = await supabase.auth.signInAnonymously();
+          session = data.session;
+        }
+        const uid = session?.user?.id;
+        if(!uid){ setReady(true); return; }
+        setUserId(uid);
+
+        // Load this user's data from Supabase
+        const { data } = await supabase
+          .from('user_settings')
+          .select('settings, extra_spend')
+          .eq('user_id', uid)
+          .maybeSingle();
+
+        if(data?.settings){
+          const d = data.settings;
+          if(d.cfg)   { setCfg({...DEFAULTS,...d.cfg}); setCfgForm({...DEFAULTS,...d.cfg}); }
+          if(d.cats)  setCats(d.cats);
+          if(d.items) setItems(d.items);
+          if(d.sales) setSales(d.sales);
+          setExtraSpend(data.extra_spend || 0);
+        }
+      } catch(e){ console.error('Init error:',e); }
       setReady(true);
     };
-    load();
+    init();
   },[]);
 
-  useEffect(()=>{ if(ready) store.set('cfg',JSON.stringify(cfg)); },[cfg,ready]);
-  useEffect(()=>{ if(ready) store.set('cats',JSON.stringify(cats)); },[cats,ready]);
-  useEffect(()=>{ if(ready) store.set('items',JSON.stringify(items)); },[items,ready]);
-  useEffect(()=>{ if(ready) store.set('sales',JSON.stringify(sales)); },[sales,ready]);
-  useEffect(()=>{ if(ready) store.set('extraspend',String(extraSpend)); },[extraSpend,ready]);
+  // ── Debounced save — writes to Supabase 1.5s after any data change ──────────
+  useEffect(()=>{
+    if(!ready||!userId) return;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async ()=>{
+      await supabase
+        .from('user_settings')
+        .upsert({
+          user_id:     userId,
+          settings:    { cfg, cats, items, sales },
+          extra_spend: extraSpend,
+          updated_at:  new Date().toISOString(),
+        },{ onConflict:'user_id' });
+    }, 1500);
+  },[cfg,cats,items,sales,extraSpend,userId,ready]);
 
   // ── Dynamic fee rate ────────────────────────────────────────────────────────
   // Starts at the user's base rate (default 15%).
