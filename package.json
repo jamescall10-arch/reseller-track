@@ -1,6 +1,6 @@
 {
   "name": "reseller-track",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,6 +12,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "@supabase/supabase-js": "^2.43.0",
+    "@clerk/clerk-react": "^5.0.0",
     "recharts": "^2.12.0"
   },
   "devDependencies": {
