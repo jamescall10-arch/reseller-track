@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { supabase } from './supabase';
+import { useAuth, SignIn } from '@clerk/clerk-react';
+import { getAuthClient } from './supabase';
 import { todayEnGB, parseEnGBDate, monthKey, formatMonthLabel, currentTaxYearBounds, isInTaxYear } from './dateUtils.js';
 import { EXPENSE_TYPES, expenseTotals, expenseShort, normalizePurchases, sumExpenses } from './expenses.js';
 import { isListingDeadZone, bundlePostageSavings, splitPostageAcrossItems, POSTAGE_PER_ITEM_IF_ALONE } from './bundleUtils.js';
@@ -152,8 +153,8 @@ export default function App(){
   const [items,setItems]       = useState([]);
   const [sales,setSales]       = useState([]);
   const [purchases,setPurchases] = useState([]);
+  const { isSignedIn, isLoaded, userId, getToken } = useAuth();
   const [ready,setReady]       = useState(false);
-  const [userId,setUserId]     = useState(null);
   const [syncStatus,setSyncStatus] = useState('saved');
   const saveTimer              = useRef(null);
 
@@ -207,16 +208,15 @@ export default function App(){
   const [bundle,setBundle]     = useState([]);
   const [bundleIn,setBundleIn] = useState('');
 
-  // ── Load from Supabase ─────────────────────────────────────────────────────
+  // ── Load from Supabase using Clerk JWT ────────────────────────────────────
   useEffect(()=>{
+    if(!isLoaded) return;
+    if(!isSignedIn){ setReady(true); return; }
     const init=async()=>{
       try{
-        let { data:{ session } } = await supabase.auth.getSession();
-        if(!session){ const { data } = await supabase.auth.signInAnonymously(); session=data.session; }
-        const uid = session?.user?.id;
-        if(!uid){ setReady(true); return; }
-        setUserId(uid);
-        const { data } = await supabase.from('user_settings').select('settings').eq('user_id',uid).maybeSingle();
+        const token = await getToken({ template:'supabase' });
+        const client = getAuthClient(token);
+        const { data } = await client.from('user_settings').select('settings').eq('user_id',userId).maybeSingle();
         if(data?.settings){
           const d = data.settings;
           if(d.cfg)  { setCfg({...DEFAULTS,...d.cfg}); setCfgForm({...DEFAULTS,...d.cfg}); }
@@ -229,16 +229,18 @@ export default function App(){
       setReady(true);
     };
     init();
-  },[]);
+  },[isLoaded,isSignedIn,userId]);
 
   // ── Debounced save to Supabase ─────────────────────────────────────────────
   useEffect(()=>{
-    if(!ready||!userId) return;
+    if(!ready||!userId||!isSignedIn) return;
     setSyncStatus('saving');
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async()=>{
       try{
-        await supabase.from('user_settings').upsert({
+        const token = await getToken({ template:'supabase' });
+        const client = getAuthClient(token);
+        await client.from('user_settings').upsert({
           user_id:userId,
           settings:{ cfg, cats, items, sales, purchases },
           updated_at:new Date().toISOString(),
@@ -246,7 +248,7 @@ export default function App(){
         setSyncStatus('saved');
       }catch(e){ console.error('Save error:',e); setSyncStatus('error'); }
     },1500);
-  },[cfg,cats,items,sales,purchases,userId,ready]);
+  },[cfg,cats,items,sales,purchases,userId,ready,isSignedIn]);
 
   // ── Computed ───────────────────────────────────────────────────────────────
   const sym = cfg.currency||'£';
@@ -443,7 +445,20 @@ export default function App(){
 
   const saveCfg=()=>{ const u={...cfgForm,baseFee:Number(cfgForm.baseFee)||15,postage:Number(cfgForm.postage)||1,initialSpend:Number(cfgForm.initialSpend)||0}; setCfg(u);setCfgForm(u);setShowCfg(false); };
 
-  if(!ready) return <div style={{...S.app,alignItems:'center',justifyContent:'center',fontSize:14,color:'#8b949e'}}>Loading…</div>;
+  if(!isLoaded) return <div style={{...S.app,alignItems:'center',justifyContent:'center',fontSize:14,color:'#8b949e'}}>Loading…</div>;
+
+  if(!isSignedIn) return(
+    <div style={{...S.app,alignItems:'center',justifyContent:'center'}}>
+      <div style={{textAlign:'center',marginBottom:32}}>
+        <div style={{fontSize:40,marginBottom:8}}>📦</div>
+        <div style={{fontSize:22,fontWeight:700,color:'#e6edf3',marginBottom:4}}>ResellerTrack</div>
+        <div style={{fontSize:13,color:'#8b949e'}}>Sign in to access your store</div>
+      </div>
+      <SignIn routing="hash" afterSignInUrl="/" afterSignUpUrl="/"/>
+    </div>
+  );
+
+  if(!ready) return <div style={{...S.app,alignItems:'center',justifyContent:'center',fontSize:14,color:'#8b949e'}}>Loading your data…</div>;
 
   // First run
   if(cats.length===0){
