@@ -513,9 +513,13 @@ export default function App(){
       {/* Stats bar */}
       {tab!=='dashboard'&&(
         <div style={{...S.sRow,gridTemplateColumns:'repeat(5,1fr)'}}>
-          {[['In stock',stats.stockCount,'#8b949e'],['Listed',stats.listedCount,'#f0883e'],['Business costs',fmt(stats.expenses.all),'#f85149'],['Items sold',stats.salesCount,'#e6edf3'],['Total profit',fmt(stats.profit),stats.profit>=0?'#3fb950':'#f85149']].map(([l,v,c])=>(
+          {[['In stock',stats.stockCount,'#8b949e'],['Listed',stats.listedCount,'#f0883e'],['Items sold',stats.salesCount,'#e6edf3'],['Total profit',fmt(stats.profit),stats.profit>=0?'#3fb950':'#f85149']].map(([l,v,c])=>(
             <div key={l} style={S.sCard}><span style={{...S.sV,color:c}}>{v}</span><span style={S.sL}>{l}</span></div>
           ))}
+          <div style={{...S.sCard,cursor:'pointer'}} onClick={()=>setShowSpend(true)} title="Click to log business spend">
+            <span style={{...S.sV,color:'#f85149'}}>{fmt(stats.expenses.all)}</span>
+            <span style={S.sL}>Business costs <span style={{color:'#58a6ff',fontSize:10,marginLeft:4}}>＋ log spend</span></span>
+          </div>
         </div>
       )}
 
