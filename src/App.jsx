@@ -537,7 +537,6 @@ export default function App(){
           <a href="https://resellertrack.lemonsqueezy.com/checkout/buy/339acfaf-9d87-427d-9869-49d3fb798dbf" style={{color:'#f0883e',fontWeight:600}}>Renew →</a>
         </div>
       )}
-      </nav>
 
       {/* Stats bar */}
       {tab!=='dashboard'&&(
