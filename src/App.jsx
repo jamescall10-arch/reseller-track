@@ -461,6 +461,14 @@ export default function App(){
 
   const saveCfg=()=>{ const u={...cfgForm,baseFee:Number(cfgForm.baseFee)||15,postage:Number(cfgForm.postage)||1,initialSpend:Number(cfgForm.initialSpend)||0}; setCfg(u);setCfgForm(u);setShowCfg(false); };
 
+  const handleOpenPortal = async () => {
+    const fallback = 'https://app.lemonsqueezy.com/my-orders';
+    const url = subCustomerId
+      ? await fetch('/api/portal?customerId='+subCustomerId).then(r=>r.json()).then(d=>d.url||fallback).catch(()=>fallback)
+      : fallback;
+    window.open(url,'_blank');
+  };
+
   if(!isLoaded) return <div style={{...S.app,alignItems:'center',justifyContent:'center',fontSize:14,color:'#8b949e'}}>Loading…</div>;
 
   if(!isSignedIn) return(
@@ -967,39 +975,30 @@ export default function App(){
       </Modal>}
 
       {/* MY ACCOUNT */}
-      {showAccount&&(()=>{
-        const email = user?.primaryEmailAddress?.emailAddress||'—';
-        const statusLabel = subStatus==='active'?'✅ Active':subStatus==='cancelled'?'⚠️ Cancelled — access until period ends':'❌ Expired';
-        const statusColor = subStatus==='active'?'#3fb950':subStatus==='cancelled'?'#d29922':'#f85149';
-        const openPortal = async () => {
-          const url = subCustomerId
-            ? await fetch(`/api/portal?customerId=${subCustomerId}`).then(r=>r.json()).then(d=>d.url).catch(()=>'https://app.lemonsqueezy.com/my-orders')
-            : 'https://app.lemonsqueezy.com/my-orders';
-          window.open(url,'_blank');
-        };
-        return(
-          <Modal title="My Account" onClose={()=>setShowAccount(false)}>
-            <div style={{display:'flex',flexDirection:'column',gap:12}}>
-              <div style={{background:'#21262d',borderRadius:8,padding:'12px 14px'}}>
-                <div style={{fontSize:11,color:'#8b949e',marginBottom:3}}>Signed in as</div>
-                <div style={{fontSize:14,fontWeight:500,color:'#e6edf3'}}>{email}</div>
-              </div>
-              <div style={{background:'#21262d',borderRadius:8,padding:'12px 14px'}}>
-                <div style={{fontSize:11,color:'#8b949e',marginBottom:3}}>Subscription status</div>
-                <div style={{fontSize:14,fontWeight:600,color:statusColor}}>{statusLabel}</div>
-              </div>
-              <button style={{...S.mBtn,textAlign:'center',width:'100%',padding:'10px'}} onClick={openPortal}>
-                🔗 Manage or cancel subscription
-              </button>
-              <p style={{fontSize:11,color:'#6e7681',textAlign:'center'}}>Opens Lemon Squeezy — sign in with {email} to manage your plan</p>
-              <button style={{...S.mBtn,textAlign:'center',width:'100%',padding:'10px',color:'#f85149',borderColor:'#f85149'}}
-                onClick={()=>{ setShowAccount(false); signOut(); }}>
-                Sign out
-              </button>
+      {showAccount&&(
+        <Modal title="My Account" onClose={()=>setShowAccount(false)}>
+          <div style={{display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{background:'#21262d',borderRadius:8,padding:'12px 14px'}}>
+              <div style={{fontSize:11,color:'#8b949e',marginBottom:3}}>Signed in as</div>
+              <div style={{fontSize:14,fontWeight:500,color:'#e6edf3'}}>{user?.primaryEmailAddress?.emailAddress||'—'}</div>
             </div>
-          </Modal>
-        );
-      })()}
+            <div style={{background:'#21262d',borderRadius:8,padding:'12px 14px'}}>
+              <div style={{fontSize:11,color:'#8b949e',marginBottom:3}}>Subscription status</div>
+              <div style={{fontSize:14,fontWeight:600,color:subStatus==='active'?'#3fb950':subStatus==='cancelled'?'#d29922':'#f85149'}}>
+                {subStatus==='active'?'✅ Active':subStatus==='cancelled'?'⚠️ Cancelled — access until period ends':'❌ Expired'}
+              </div>
+            </div>
+            <button style={{...S.mBtn,textAlign:'center',width:'100%',padding:'10px'}} onClick={handleOpenPortal}>
+              🔗 Manage or cancel subscription
+            </button>
+            <p style={{fontSize:11,color:'#6e7681',textAlign:'center'}}>Opens Lemon Squeezy — sign in with your email to manage your plan</p>
+            <button style={{...S.mBtn,textAlign:'center',width:'100%',padding:'10px',color:'#f85149',borderColor:'#f85149'}}
+              onClick={()=>{ setShowAccount(false); signOut(); }}>
+              Sign out
+            </button>
+          </div>
+        </Modal>
+      )}
 
     </div>
   );
