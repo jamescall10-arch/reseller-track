@@ -502,6 +502,9 @@ export default function App(){
       </div>
     );
   }
+
+  // First run — no categories yet
+  if(cats.length===0){
     return(
       <div style={{...S.app,alignItems:'center',justifyContent:'center'}}>
         <div style={{maxWidth:440,textAlign:'center',padding:32}}>
