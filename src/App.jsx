@@ -207,6 +207,7 @@ export default function App(){
   // Buy calc
   const [bundle,setBundle]     = useState([]);
   const [bundleIn,setBundleIn] = useState('');
+  const [margin,setMargin]     = useState(60);
 
   // ── Load from Supabase using Clerk JWT ────────────────────────────────────
   useEffect(()=>{
@@ -328,7 +329,8 @@ export default function App(){
   const bundleFeeTotal = +bundle.reduce((s,p)=>s+calcFees(p),0).toFixed(2);
   const bundlePostage  = +(bundle.length*(cfg.postage||1)).toFixed(2);
   const bundleNet      = +(bundleGross-bundleFeeTotal-bundlePostage).toFixed(2);
-  const bundlePay      = +(bundleNet*0.6).toFixed(2);
+  const marginPct      = Math.min(100,Math.max(1,parseFloat(margin)||60));
+  const bundlePay      = +(bundleNet*(marginPct/100)).toFixed(2);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const addCat=()=>{
@@ -664,7 +666,10 @@ export default function App(){
                 } placeholder="0.00"/>
               <button style={S.addBtn} onClick={()=>{const v=parseFloat(bundleIn);if(v>0){setBundle(p=>[...p,v]);setBundleIn('');}else alert('Enter a value');}}>＋ Add</button>
               {bundle.length>0&&<button style={{...S.mBtn,fontSize:12,padding:'5px 10px'}} onClick={()=>setBundle([])}>Clear all</button>}
-              {bundle.length>0&&<span style={{fontSize:12,color:'#8b949e',marginLeft:'auto'}}>{bundle.length} item{bundle.length!==1?'s':''}</span>}
+              <div style={{display:'flex',alignItems:'center',gap:6,marginLeft:'auto'}}>
+                <span style={{fontSize:12,color:'#8b949e',whiteSpace:'nowrap'}}>Margin %</span>
+                <input style={{...S.fInp,width:70,textAlign:'center'}} type="number" min="1" max="100" step="1" value={margin} onChange={e=>setMargin(e.target.value)} title="Percentage of net value you want to pay"/>
+              </div>
             </div>
           </div>
           {bundle.length===0
@@ -703,7 +708,7 @@ export default function App(){
                 <div style={{...S.bRow,borderBottom:'none',paddingTop:8,marginTop:4,borderTop:'1px solid #30363d'}}><span style={{fontWeight:600}}>Total net value</span><span style={{fontWeight:700}}>{sym}{bundleNet.toFixed(2)}</span></div>
               </div>
               <div style={{marginTop:10,background:'#1a2f1a',border:'1px solid #238636',borderRadius:8,padding:'14px 18px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <div><div style={{fontSize:12,color:'#7ee787',fontWeight:500,marginBottom:2}}>Amount you should pay</div><div style={{fontSize:11,color:'#3fb950',opacity:.8}}>60% of net value after fees and postage</div></div>
+                <div><div style={{fontSize:12,color:'#7ee787',fontWeight:500,marginBottom:2}}>Amount you should pay</div><div style={{fontSize:11,color:'#3fb950',opacity:.8}}>{marginPct}% of net value after fees and postage</div></div>
                 <div style={{fontSize:32,fontWeight:700,color:'#3fb950'}}>{sym}{bundlePay.toFixed(2)}</div>
               </div>
             </>
