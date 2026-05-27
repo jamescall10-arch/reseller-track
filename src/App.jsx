@@ -480,22 +480,11 @@ export default function App(){
     );
   }
 
-  const taxYearData=(()=>{
-    const {tyStart,tyEndExclusive,tyLabel,tyYear}=currentTaxYearBounds();
-    const tySales=activeSales(sales).filter(s=>isInTaxYear(parseEnGBDate(s.date),tyStart,tyEndExclusive));
-    const tyGross=+tySales.reduce((a,s)=>a+(s.soldPrice||0),0).toFixed(2);
-    const tyFees=+tySales.reduce((a,s)=>a+saleFees(s),0).toFixed(2);
-    const tyPost=+tySales.reduce((a,s)=>a+(s.postage||0),0).toFixed(2);
-    const tyNet=+(tyGross-tyFees-tyPost).toFixed(2);
-    const tyPct=Math.min(100,(tyGross/1000)*100);
-    return{tySales,tyGross,tyFees,tyPost,tyNet,tyPct,tyLabel,tyYear,tyOver:tyGross>=1000};
-  })();
-
   return(
     <div style={S.app}>
       {/* Nav */}
       <nav style={S.nav}>
-        {[['dashboard','🏠 Dashboard'],['inventory','📦 Inventory'],['listings','🏷️ Active Listings'],['buying','🧮 Buy Calculator'],['sales','💰 Sales Log'],['pnl','📊 P&L'],['taxes','💷 Taxes']].map(([t,l])=>(
+        {[['dashboard','🏠 Dashboard'],['inventory','📦 Inventory'],['listings','🏷️ Active Listings'],['buying','🧮 Buy Calculator'],['sales','💰 Sales Log'],['pnl','📊 P&L']].map(([t,l])=>(
           <NavBtn key={t} active={tab===t} onClick={()=>setTab(t)}>
             {l}{t==='listings'&&stats.listedCount>0?` (${stats.listedCount})`:''}
           </NavBtn>
@@ -805,54 +794,6 @@ export default function App(){
             </div>
             <div style={{fontSize:11,color:'#6e7681',marginTop:8}}>Gross profit = revenue minus eBay fees and postage. Net profit = gross minus all business costs (stock, equipment, supplies).</div>
           </>;
-        })()}
-
-        {/* TAXES */}
-        {tab==='taxes'&&(()=>{
-          const {tyGross,tyFees,tyPost,tyNet,tyPct,tyLabel,tyYear,tyOver,tySales}=taxYearData;
-          const IC=({title,children,acc})=>(<div style={{...S.iCard,border:`1px solid ${acc||'#30363d'}`}}><div style={{fontSize:13,fontWeight:600,marginBottom:10,color:'#e6edf3'}}>{title}</div>{children}</div>);
-          const P=({c,children})=><p style={{fontSize:12,color:c||'#8b949e',lineHeight:1.7,margin:'0 0 6px'}}>{children}</p>;
-          const LI=({children})=><li style={{fontSize:12,color:'#8b949e',lineHeight:1.7,marginBottom:3}}>{children}</li>;
-          const statusC=tyGross<1000?'#3fb950':tyGross<5000?'#d29922':'#f85149';
-          return <div>
-            {cfg.taxCountry!=='UK'&&<div style={{...S.iCard,border:'1px solid #9e6a03',background:'#2d1c00',marginBottom:10}}><P c="#d29922">⚠️ This guide is based on UK tax rules. If you're not in the UK, please check with your local tax authority.</P></div>}
-            <IC title={`Tax snapshot — ${tyLabel}`}>
-              <div style={{fontSize:11,color:'#8b949e',marginBottom:12}}>6 Apr {tyYear} to 5 Apr {tyYear+1} · {tySales.length} sale{tySales.length!==1?'s':''} this year</div>
-              <div style={{marginBottom:14}}>
-                <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#8b949e',marginBottom:5}}><span>Gross revenue toward £1,000 allowance</span><span style={{color:statusC,fontWeight:600}}>{fmt(tyGross)} / £1,000</span></div>
-                <div style={{background:'#21262d',borderRadius:4,height:10,overflow:'hidden'}}><div style={{width:`${tyPct}%`,height:'100%',background:statusC,borderRadius:4}}/></div>
-              </div>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:8,marginBottom:12}}>
-                {[['Gross revenue',fmt(tyGross),'#e6edf3'],['eBay fees paid','−'+fmt(tyFees),'#f85149'],['Postage paid','−'+fmt(tyPost),'#f85149'],['Net (known costs)',fmt(tyNet),tyNet>=0?'#3fb950':'#f85149']].map(([l,v,c])=>(
-                  <div key={l} style={{background:'#21262d',borderRadius:6,padding:'8px 10px'}}><div style={{fontSize:10,color:'#8b949e',marginBottom:3,lineHeight:1.4}}>{l}</div><div style={{fontSize:14,fontWeight:700,color:c}}>{v}</div></div>
-                ))}
-              </div>
-              <div style={{fontSize:12,padding:'9px 12px',borderRadius:6,background:tyOver?'#2d1c1c':'#1a2f1a',color:statusC,fontWeight:500}}>
-                {tyOver?'⚠️ Over £1,000 gross — you may need to register for Self Assessment':'✅ Under the £1,000 trading allowance — no tax action needed this year'}
-              </div>
-              <P c="#6e7681">Also deduct your stock costs for your true taxable profit.</P>
-            </IC>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:10}}>
-              <IC title="📋 How reselling is taxed"><P>Buying to resell for profit = trading income, taxed the same as self-employment. You're only taxed on profit, not total revenue.</P></IC>
-              <IC title="🎁 The £1,000 Trading Allowance"><P>Under £1,000 gross: no tax, no action needed. Over £1,000: register for Self Assessment and deduct either the flat £1,000 or your actual costs (usually better).</P></IC>
-              <IC title="🧾 What you can deduct"><ul style={{paddingLeft:16,margin:'4px 0'}}><LI>Cost of stock purchased</LI><LI>eBay selling fees</LI><LI>Postage and packaging</LI><LI>Equipment used for the business</LI><LI>Proportion of internet costs</LI></ul></IC>
-              <IC title="📊 Registration thresholds"><div style={{display:'flex',flexDirection:'column',gap:6}}>{[['Under £1,000 gross','No action needed','#3fb950'],['£1,000–£12,570 profit','Register + file return. Likely no tax if in personal allowance','#d29922'],['Over £12,570 profit','Register, file return, pay Income Tax + NI','#f85149']].map(([r,a,c])=>(<div key={r} style={{background:'#21262d',borderRadius:6,padding:'7px 10px'}}><div style={{fontSize:11,fontWeight:600,color:c,marginBottom:2}}>{r}</div><div style={{fontSize:11,color:'#8b949e'}}>{a}</div></div>))}</div></IC>
-              <IC title="💷 Income Tax rates (2025–26)">
-                <table style={{...S.tbl,tableLayout:'auto',marginTop:4}}>
-                  <thead><tr>{['Band','Profit','Rate'].map(h=><th key={h} style={{...S.th,background:'#21262d',textAlign:h==='Rate'?'right':'left'}}>{h}</th>)}</tr></thead>
-                  <tbody>{[['Personal Allowance','£0 – £12,570','0%','#3fb950'],['Basic Rate','£12,571 – £50,270','20%','#d29922'],['Higher Rate','£50,271 – £125,140','40%','#f85149'],['Additional Rate','Over £125,140','45%','#f85149']].map(([b,r,rt,c])=>(<tr key={b}><td style={S.td}>{b}</td><td style={{...S.td,color:'#8b949e',fontSize:11}}>{r}</td><td style={{...S.td,textAlign:'right',fontWeight:700,color:c}}>{rt}</td></tr>))}</tbody>
-                </table>
-                <P>Class 4 NI: 6% on profits £12,570–£50,270.</P>
-              </IC>
-              <IC title="📅 Key dates"><div style={{display:'flex',flexDirection:'column',gap:8}}>{[['6 Apr','New tax year begins'],['5 Oct','Register for Self Assessment'],['31 Jan','Online return + pay tax'],['31 Jul','Second payment on account']].map(([d,desc])=>(<div key={d} style={{display:'flex',gap:12}}><div style={{fontSize:11,fontWeight:700,color:'#f0883e',minWidth:36,flexShrink:0}}>{d}</div><div style={{fontSize:12,color:'#8b949e'}}>{desc}</div></div>))}</div></IC>
-            </div>
-            <IC title="🔔 eBay reports your sales to HMRC" acc="#9e6a03">
-              <P>Since January 2024, eBay must report seller data to HMRC under DAC7. 30+ sales or ~£1,700+ revenue and HMRC gets your details automatically. Keep good records and register if you're over the threshold.</P>
-            </IC>
-            <div style={{fontSize:11,color:'#6e7681',padding:'10px 0',textAlign:'center',borderTop:'1px solid #21262d'}}>
-              General guide only — not professional advice. Check <a href="https://www.gov.uk/working-for-yourself" target="_blank" style={{color:'#58a6ff'}}>gov.uk</a> or speak to an accountant.
-            </div>
-          </div>;
         })()}
 
       </div>
