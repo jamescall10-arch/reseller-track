@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useAuth, SignIn } from '@clerk/clerk-react';
+import { useAuth, useUser, useClerk, SignIn } from '@clerk/clerk-react';
 import { getAuthClient } from './supabase';
 import { todayEnGB, parseEnGBDate, monthKey, formatMonthLabel, currentTaxYearBounds, isInTaxYear } from './dateUtils.js';
 import { EXPENSE_TYPES, expenseTotals, expenseShort, normalizePurchases, sumExpenses } from './expenses.js';
@@ -154,8 +154,13 @@ export default function App(){
   const [sales,setSales]       = useState([]);
   const [purchases,setPurchases] = useState([]);
   const { isSignedIn, isLoaded, userId, getToken } = useAuth();
+  const { user } = useUser();
+  const { signOut } = useClerk();
   const [ready,setReady]       = useState(false);
   const [syncStatus,setSyncStatus] = useState('saved');
+  const [subStatus,setSubStatus]   = useState('active');
+  const [subCustomerId,setSubCustomerId] = useState(null);
+  const [showAccount,setShowAccount]     = useState(false);
   const saveTimer              = useRef(null);
 
   // Nav
@@ -251,7 +256,16 @@ export default function App(){
     },1500);
   },[cfg,cats,items,sales,purchases,userId,ready,isSignedIn]);
 
-  // ── Computed ───────────────────────────────────────────────────────────────
+  // ── Fetch subscription status ──────────────────────────────────────────────
+  useEffect(()=>{
+    if(!isSignedIn||!user) return;
+    const email = user.primaryEmailAddress?.emailAddress;
+    if(!email) return;
+    fetch(`/api/subscription?email=${encodeURIComponent(email)}`)
+      .then(r=>r.json())
+      .then(d=>{ setSubStatus(d.status||'active'); if(d.customerId) setSubCustomerId(d.customerId); })
+      .catch(()=>setSubStatus('active'));
+  },[isSignedIn,user]);
   const sym = cfg.currency||'£';
   const fmt = n => money(n,sym);
   const expenses = useMemo(()=>expenseTotals(purchases),[purchases]);
@@ -462,8 +476,24 @@ export default function App(){
 
   if(!ready) return <div style={{...S.app,alignItems:'center',justifyContent:'center',fontSize:14,color:'#8b949e'}}>Loading your data…</div>;
 
-  // First run
-  if(cats.length===0){
+  // Paywall — subscription expired
+  if(subStatus==='expired'){
+    return(
+      <div style={{...S.app,alignItems:'center',justifyContent:'center'}}>
+        <div style={{maxWidth:420,textAlign:'center',padding:32}}>
+          <div style={{fontSize:48,marginBottom:16}}>📦</div>
+          <h2 style={{fontSize:22,fontWeight:700,color:'#e6edf3',marginBottom:8}}>Your subscription has ended</h2>
+          <p style={{fontSize:14,color:'#8b949e',lineHeight:1.7,marginBottom:28}}>Renew your subscription to access ResellerTrack. Your data is safe and will be waiting for you.</p>
+          <a href="https://resellertrack.lemonsqueezy.com/checkout/buy/339acfaf-9d87-427d-9869-49d3fb798dbf"
+            style={{...S.addBtn,fontSize:15,padding:'12px 24px',margin:'0 auto 16px',display:'inline-flex',textDecoration:'none'}}>
+            Renew subscription — £4.99/month
+          </a>
+          <br/>
+          <button style={{...S.mBtn,fontSize:13,margin:'0 auto'}} onClick={()=>signOut()}>Sign out</button>
+        </div>
+      </div>
+    );
+  }
     return(
       <div style={{...S.app,alignItems:'center',justifyContent:'center'}}>
         <div style={{maxWidth:440,textAlign:'center',padding:32}}>
@@ -497,8 +527,16 @@ export default function App(){
             {syncStatus==='error'?'⚠ Sync failed':syncStatus==='saving'?'Saving…':'✓ Synced'}
           </span>
           <button style={{...S.mBtn,fontSize:12,padding:'5px 10px'}} onClick={()=>setShowSpend(true)}>＋ Log spend</button>
+          <button style={{...S.mBtn,fontSize:12,padding:'5px 10px'}} onClick={()=>setShowAccount(true)}>👤 Account</button>
           <button style={{...S.mBtn,fontSize:12,padding:'5px 10px'}} onClick={()=>{setCfgForm(cfg);setShowCfg(true);}}>⚙️</button>
         </div>
+      </nav>
+      {subStatus==='cancelled'&&(
+        <div style={{background:'#2d1c00',borderBottom:'1px solid #9e6a03',padding:'8px 16px',fontSize:12,color:'#d29922',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:8}}>
+          <span>⚠️ Your subscription is cancelled and will end on {subStatus==='cancelled'?'the next billing date':'soon'}. Your data is safe.</span>
+          <a href="https://resellertrack.lemonsqueezy.com/checkout/buy/339acfaf-9d87-427d-9869-49d3fb798dbf" style={{color:'#f0883e',fontWeight:600}}>Renew →</a>
+        </div>
+      )}
       </nav>
 
       {/* Stats bar */}
@@ -929,6 +967,42 @@ export default function App(){
         </div>}
       </Modal>}
 
+      {/* MY ACCOUNT */}
+      {showAccount&&(()=>{
+        const email = user?.primaryEmailAddress?.emailAddress||'—';
+        const statusLabel = subStatus==='active'?'✅ Active':subStatus==='cancelled'?'⚠️ Cancelled — access until period ends':'❌ Expired';
+        const statusColor = subStatus==='active'?'#3fb950':subStatus==='cancelled'?'#d29922':'#f85149';
+        const openPortal = async () => {
+          const url = subCustomerId
+            ? await fetch(`/api/portal?customerId=${subCustomerId}`).then(r=>r.json()).then(d=>d.url).catch(()=>'https://app.lemonsqueezy.com/my-orders')
+            : 'https://app.lemonsqueezy.com/my-orders';
+          window.open(url,'_blank');
+        };
+        return(
+          <Modal title="My Account" onClose={()=>setShowAccount(false)}>
+            <div style={{display:'flex',flexDirection:'column',gap:12}}>
+              <div style={{background:'#21262d',borderRadius:8,padding:'12px 14px'}}>
+                <div style={{fontSize:11,color:'#8b949e',marginBottom:3}}>Signed in as</div>
+                <div style={{fontSize:14,fontWeight:500,color:'#e6edf3'}}>{email}</div>
+              </div>
+              <div style={{background:'#21262d',borderRadius:8,padding:'12px 14px'}}>
+                <div style={{fontSize:11,color:'#8b949e',marginBottom:3}}>Subscription status</div>
+                <div style={{fontSize:14,fontWeight:600,color:statusColor}}>{statusLabel}</div>
+              </div>
+              <button style={{...S.mBtn,textAlign:'center',width:'100%',padding:'10px'}} onClick={openPortal}>
+                🔗 Manage or cancel subscription
+              </button>
+              <p style={{fontSize:11,color:'#6e7681',textAlign:'center'}}>Opens Lemon Squeezy — sign in with {email} to manage your plan</p>
+              <button style={{...S.mBtn,textAlign:'center',width:'100%',padding:'10px',color:'#f85149',borderColor:'#f85149'}}
+                onClick={()=>{ setShowAccount(false); signOut(); }}>
+                Sign out
+              </button>
+            </div>
+          </Modal>
+        );
+      })()}
+
     </div>
   );
 }
+
