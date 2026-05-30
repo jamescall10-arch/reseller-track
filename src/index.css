@@ -182,3 +182,45 @@ input[type=number] { -moz-appearance: textfield; }
     width: 100% !important;
   }
 }
+
+/* ── MOBILE HEADER ──────────────────────────────────────────── */
+.rt-mobile-header {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  /* Fix nav - horizontal scroll only, no vertical */
+  .rt-nav {
+    overflow-y: hidden !important;
+  }
+
+  /* Sticky top bar on mobile */
+  .rt-mobile-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    flex-shrink: 0;
+  }
+
+  .rt-mobile-header-logo {
+    font-size: 14px;
+    font-weight: 700;
+    color: #e6edf3;
+  }
+
+  .rt-mobile-header-actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  /* Hide desktop navR on mobile - actions are in sticky header */
+  .rt-nav-r {
+    display: none !important;
+  }
+}
