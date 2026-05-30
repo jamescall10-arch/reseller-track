@@ -478,7 +478,11 @@ export default function App(){
         <div style={{fontSize:22,fontWeight:700,color:'#e6edf3',marginBottom:4}}>ResellerTrack</div>
         <div style={{fontSize:13,color:'#8b949e'}}>Sign in to access your store</div>
       </div>
-      <SignIn routing="hash" afterSignInUrl="/" afterSignUpUrl="/"/>
+      <SignIn routing="hash" afterSignInUrl="/" appearance={{elements:{footerAction:{display:'none'}}}}/>
+      <p style={{fontSize:12,color:'#6e7681',marginTop:20,textAlign:'center'}}>
+        Don't have an account?{' '}
+        <a href="https://resellertrack.lemonsqueezy.com/checkout/buy/339acfaf-9d87-427d-9869-49d3fb798dbf" style={{color:'#58a6ff'}}>Start your free trial</a>
+      </p>
     </div>
   );
 
