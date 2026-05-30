@@ -643,7 +643,7 @@ export default function App(){
                 ))}
               </div>
             ) : (
-              <table style={S.tbl}>
+              <div style={S.tWrap}><table style={S.tbl}>
                 <thead><tr>
                   <th style={{...S.th,width:'38%'}}>Item</th>
                   <th style={{...S.th,width:'8%',textAlign:'center'}}>Qty</th>
