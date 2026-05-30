@@ -549,6 +549,16 @@ export default function App(){
   return(
     <div style={S.app}>
       {/* Nav */}
+      {isMobile&&(
+        <div className="rt-mobile-header">
+          <span className="rt-mobile-header-logo">📦 ResellerTrack</span>
+          <div className="rt-mobile-header-actions">
+            <button style={{...S.mBtn,padding:'7px 11px',fontSize:13}} onClick={()=>setShowSpend(true)} title="Log spend">＋</button>
+            <button style={{...S.mBtn,padding:'7px 11px',fontSize:13}} onClick={()=>setShowAccount(true)} title="My account">👤</button>
+            <button style={{...S.mBtn,padding:'7px 11px',fontSize:13}} onClick={()=>{setCfgForm(cfg);setShowCfg(true);}} title="Settings">⚙️</button>
+          </div>
+        </div>
+      )}
       <nav className="rt-nav">
         {[['dashboard','🏠 Dashboard'],['inventory','📦 Inventory'],['listings','🏷️ Active Listings'],['buying','🧮 Buy Calculator'],['sales','💰 Sales Log'],['pnl','📊 P&L']].map(([t,l])=>(
           <NavBtn key={t} active={tab===t} onClick={()=>setTab(t)}>
@@ -590,7 +600,7 @@ export default function App(){
 
         {/* DASHBOARD */}
         {tab==='dashboard'&&(
-          <Dashboard stats={stats} monthlyPL={monthlyPL} expenses={expenses} sales={sales} purchases={purchases} items={items} cats={cats} sym={sym}/>
+          <Dashboard stats={stats} monthlyPL={monthlyPL} expenses={expenses} sales={sales} purchases={purchases} items={items} cats={cats} sym={sym} isMobile={isMobile}/>
         )}
 
         {/* INVENTORY */}
