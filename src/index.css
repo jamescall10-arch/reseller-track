@@ -31,3 +31,154 @@ input[type=number] { -moz-appearance: textfield; }
 ::-webkit-scrollbar-track { background: #0d1117; }
 ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+/* ── RESPONSIVE NAV ─────────────────────────────────────────── */
+.rt-nav {
+  display: flex;
+  gap: 2px;
+  padding: 10px 16px 0;
+  background: #161b22;
+  border-bottom: 1px solid #30363d;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.rt-nav-r {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  padding-bottom: 10px;
+  flex-shrink: 0;
+}
+
+/* ── RESPONSIVE STATS BAR ───────────────────────────────────── */
+.rt-stats {
+  display: grid;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #161b22;
+  border-bottom: 1px solid #30363d;
+  grid-template-columns: repeat(5, 1fr);
+}
+
+/* ── RESPONSIVE MODAL ───────────────────────────────────────── */
+.rt-modal-inner {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 12px;
+  padding: 20px;
+  width: 540px;
+  max-width: 95vw;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.rt-modal-inner.narrow {
+  width: 360px;
+}
+
+/* ── RESPONSIVE MAIN ────────────────────────────────────────── */
+.rt-main {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+/* ── RESPONSIVE TOOLBAR ─────────────────────────────────────── */
+.rt-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ── CATEGORY TABS ──────────────────────────────────────────── */
+.rt-cat-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ── SYNC STATUS ────────────────────────────────────────────── */
+.rt-sync { font-size: 11px; white-space: nowrap; }
+.rt-fee  { font-size: 11px; white-space: nowrap; color: #3fb950; }
+
+/* ════════════════════════════════════════════════════════════
+   MOBILE  (≤ 640px)
+   ════════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+
+  /* Nav — horizontal scroll, no wrap */
+  .rt-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 4px;
+    gap: 0;
+    scrollbar-width: none;
+  }
+  .rt-nav::-webkit-scrollbar { display: none; }
+
+  /* Hide fee rate and sync text on mobile to save space */
+  .rt-sync, .rt-fee { display: none; }
+
+  .rt-nav-r {
+    gap: 6px;
+    padding: 6px 4px;
+  }
+
+  /* Stats — 2 columns */
+  .rt-stats {
+    grid-template-columns: repeat(2, 1fr);
+    padding: 8px;
+    gap: 6px;
+  }
+
+  /* Modal — full width, slide from bottom */
+  .rt-modal-inner,
+  .rt-modal-inner.narrow {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 16px 16px 0 0;
+    padding: 16px;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-height: 92vh;
+  }
+
+  /* Modal backdrop aligns to bottom */
+  .rt-modal-backdrop {
+    align-items: flex-end !important;
+  }
+
+  /* Main content — tighter padding */
+  .rt-main {
+    padding: 10px;
+  }
+
+  /* Toolbar — wrap tighter */
+  .rt-toolbar {
+    gap: 6px;
+  }
+
+  /* Category tabs — scroll horizontally */
+  .rt-cat-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+  }
+  .rt-cat-tabs::-webkit-scrollbar { display: none; }
+
+  /* Search bar full width on mobile */
+  .rt-search-wrap {
+    width: 100% !important;
+  }
+}
