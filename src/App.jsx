@@ -764,7 +764,6 @@ export default function App(){
                         </tbody>
                       </table>
                     </div>
-                    </div>
                     )}
                     <div style={S.fRow}>{filteredListed.length} listing{filteredListed.length!==1?'s':''} · {filteredListed.reduce((s,it)=>s+iq(it),0)} copies</div>
                   </>
