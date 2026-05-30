@@ -7,6 +7,17 @@ import { isListingDeadZone, bundlePostageSavings, splitPostageAcrossItems, POSTA
 import { moneyReceived, feesFromInputs, saleFees } from './saleUtils.js';
 import Dashboard from './Dashboard.jsx';
 
+// ── mobile detection ─────────────────────────────────────────────────────────
+const useIsMobile = () => {
+  const [mob, setMob] = useState(()=>typeof window!=='undefined'&&window.innerWidth<=640);
+  useEffect(()=>{
+    const h = () => setMob(window.innerWidth<=640);
+    window.addEventListener('resize',h);
+    return ()=>window.removeEventListener('resize',h);
+  },[]);
+  return mob;
+};
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 const ebayUrl = n => `https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent(n)}&LH_Sold=1&LH_Complete=1`;
 const money = (n,sym) => (n<0?'-':'')+sym+Math.abs(n).toFixed(2);
@@ -30,13 +41,13 @@ const SORT_OPTS = [['price-desc','Price ↓'],['price-asc','Price ↑'],['name',
 // ── styles ───────────────────────────────────────────────────────────────────
 const S = {
   app:     {fontFamily:'system-ui,sans-serif',background:'#0d1117',color:'#e6edf3',minHeight:'100vh',display:'flex',flexDirection:'column'},
-  nav:     {display:'flex',gap:2,padding:'10px 16px 0',background:'#161b22',borderBottom:'1px solid #30363d',flexWrap:'wrap',alignItems:'flex-end'},
-  navR:    {display:'flex',alignItems:'center',gap:10,marginLeft:'auto',paddingBottom:10},
+  nav:     {}, // handled by .rt-nav CSS class
+  navR:    {}, // handled by .rt-nav-r CSS class
   sRow:    {display:'grid',gap:8,padding:'12px 16px',background:'#161b22',borderBottom:'1px solid #30363d'},
   sCard:   {background:'#21262d',borderRadius:6,padding:'10px 14px',border:'1px solid #30363d'},
   sV:      {fontSize:20,fontWeight:600,display:'block',lineHeight:1.2},
   sL:      {fontSize:11,color:'#8b949e',marginTop:2,display:'block'},
-  main:    {flex:1,padding:16,overflowY:'auto'},
+  main:    {}, // handled by .rt-main CSS class
   toolbar: {display:'flex',gap:8,marginBottom:10,flexWrap:'wrap',alignItems:'center'},
   sWrap:   {position:'relative',width:220,flexShrink:0},
   sInput:  {width:'100%',padding:'7px 10px 7px 30px',border:'1px solid #30363d',borderRadius:6,background:'#21262d',color:'#e6edf3',fontSize:13,fontFamily:'system-ui',boxSizing:'border-box'},
@@ -88,8 +99,8 @@ function IBtn({href,onClick,title,col,children}){
 
 function Modal({title,onClose,children,wide}){
   return(
-    <div style={{position:'fixed',inset:0,background:'rgba(1,4,9,0.8)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200}} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-      <div style={{background:'#161b22',border:'1px solid #30363d',borderRadius:12,padding:20,width:wide?540:360,maxWidth:'95vw',maxHeight:'90vh',overflowY:'auto'}}>
+    <div className="rt-modal-backdrop" style={{position:'fixed',inset:0,background:'rgba(1,4,9,0.8)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200}} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className={wide?'rt-modal-inner':'rt-modal-inner narrow'}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
           <span style={{fontSize:15,fontWeight:600,color:'#e6edf3'}}>{title}</span>
           <button style={{...S.mBtn,padding:'3px 8px'}} onClick={onClose}>✕</button>
@@ -156,6 +167,14 @@ export default function App(){
   const { isSignedIn, isLoaded, userId, getToken } = useAuth();
   const { user } = useUser();
   const { signOut } = useClerk();
+  const isMobile = useIsMobile();
+
+  // Mobile item card style
+  const mCard = {background:'#161b22',border:'1px solid #30363d',borderRadius:8,padding:'12px',marginBottom:8};
+  const mRow  = {display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8};
+  const mName = {flex:1,paddingRight:8,fontWeight:600,fontSize:14,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'};
+  const mSub  = {fontSize:11,color:'#8b949e',marginTop:2};
+  const mFoot = {display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:6};
   const [ready,setReady]       = useState(false);
   const [syncStatus,setSyncStatus] = useState('saved');
   const [subStatus,setSubStatus]   = useState('active');
@@ -530,15 +549,15 @@ export default function App(){
   return(
     <div style={S.app}>
       {/* Nav */}
-      <nav style={S.nav}>
+      <nav className="rt-nav">
         {[['dashboard','🏠 Dashboard'],['inventory','📦 Inventory'],['listings','🏷️ Active Listings'],['buying','🧮 Buy Calculator'],['sales','💰 Sales Log'],['pnl','📊 P&L']].map(([t,l])=>(
           <NavBtn key={t} active={tab===t} onClick={()=>setTab(t)}>
             {l}{t==='listings'&&stats.listedCount>0?` (${stats.listedCount})`:''}
           </NavBtn>
         ))}
-        <div style={S.navR}>
-          {effectiveFeeRate&&<span style={{fontSize:11,color:'#3fb950',whiteSpace:'nowrap'}}>✓ Fee: {(effectiveFeeRate*100).toFixed(1)}%</span>}
-          <span style={{fontSize:11,color:syncStatus==='error'?'#f85149':syncStatus==='saving'?'#d29922':'#3fb950',whiteSpace:'nowrap'}}>
+        <div className="rt-nav-r">
+          {effectiveFeeRate&&<span className="rt-fee">✓ Fee: {(effectiveFeeRate*100).toFixed(1)}%</span>}
+          <span className="rt-sync" style={{color:syncStatus==='error'?'#f85149':syncStatus==='saving'?'#d29922':'#3fb950'}}>
             {syncStatus==='error'?'⚠ Sync failed':syncStatus==='saving'?'Saving…':'✓ Synced'}
           </span>
           <button style={{...S.mBtn,fontSize:12,padding:'5px 10px'}} onClick={()=>setShowSpend(true)}>＋ Log spend</button>
@@ -555,7 +574,7 @@ export default function App(){
 
       {/* Stats bar */}
       {tab!=='dashboard'&&(
-        <div style={{...S.sRow,gridTemplateColumns:'repeat(5,1fr)'}}>
+        <div className="rt-stats">
           {[['In stock',stats.stockCount,'#8b949e'],['Listed',stats.listedCount,'#f0883e'],['Items sold',stats.salesCount,'#e6edf3'],['Total profit',fmt(stats.profit),stats.profit>=0?'#3fb950':'#f85149']].map(([l,v,c])=>(
             <div key={l} style={S.sCard}><span style={{...S.sV,color:c}}>{v}</span><span style={S.sL}>{l}</span></div>
           ))}
@@ -567,7 +586,7 @@ export default function App(){
       )}
 
       {/* Main */}
-      <div style={S.main}>
+      <div className="rt-main">
 
         {/* DASHBOARD */}
         {tab==='dashboard'&&(
@@ -578,27 +597,52 @@ export default function App(){
         {tab==='inventory'&&(()=>{
           const counts=Object.fromEntries(cats.map(c=>[c.id,items.filter(it=>it.categoryId===c.id&&it.status==='stock').reduce((s,it)=>s+iq(it),0)]));
           return <>
-            <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap',alignItems:'center'}}>
+            <div className="rt-cat-tabs">
               {cats.map(c=>(
                 <button key={c.id} style={{...S.catTab,...(curInvCat===c.id?S.catTabA:{})}} onClick={()=>{setInvCat(c.id);setInvSearch('');setInvTier('all');}}>
                   {c.name} <span style={{opacity:.6}}>({counts[c.id]||0})</span>
                 </button>
               ))}
-              <button style={{...S.catTab,marginLeft:'auto',color:'#58a6ff',borderColor:'#1f6feb'}} onClick={()=>{setNewCatName('');setShowAddCat(true);}}>＋ New category</button>
+              <button style={{...S.catTab,marginLeft:'auto',color:'#58a6ff',borderColor:'#1f6feb',flexShrink:0}} onClick={()=>{setNewCatName('');setShowAddCat(true);}}>＋ New category</button>
             </div>
-            <div style={S.toolbar}>
-              <SearchBar value={invSearch} onChange={setInvSearch} placeholder={`Search ${cats.find(c=>c.id===curInvCat)?.name||''}…`}/>
-              <div style={{display:'flex',gap:4}}>
+            <div className="rt-toolbar">
+              <div className="rt-search-wrap" style={{position:'relative',width:220,flexShrink:0}}>
+                <span style={S.sIcon}>🔍</span>
+                <input style={{...S.sInput,paddingRight:invSearch?30:10}} placeholder={`Search ${cats.find(c=>c.id===curInvCat)?.name||''}…`} value={invSearch} onChange={e=>setInvSearch(e.target.value)}/>
+                {invSearch&&<button type="button" style={S.sClear} onClick={()=>setInvSearch('')} title="Clear">✕</button>}
+              </div>
+              {!isMobile&&<div style={{display:'flex',gap:4}}>
                 {[['all','All'],['high','£20+'],['mid','£5–20'],['low','Under £5']].map(([v,l])=>(
                   <button key={v} style={{...S.chip,...(invTier===v?S.chipA:{})}} onClick={()=>setInvTier(v)}>{l}</button>
                 ))}
-              </div>
-              <select style={S.sel} value={invSort} onChange={e=>setInvSort(e.target.value)}>
+              </div>}
+              {!isMobile&&<select style={S.sel} value={invSort} onChange={e=>setInvSort(e.target.value)}>
                 {SORT_OPTS.map(([v,l])=><option key={v} value={v}>{l}</option>)}
-              </select>
+              </select>}
               <button style={S.addBtn} onClick={()=>{setAddName('');setAddPrice('');setAddQty('1');setShowAddItem(true);}}>＋ Add item</button>
             </div>
-            <div style={S.tWrap}>
+            {isMobile ? (
+              <div>
+                {filteredItems.length===0&&<div style={S.empty}>No items — tap ＋ Add item to get started</div>}
+                {filteredItems.map(it=>(
+                  <div key={it.id} style={mCard}>
+                    <div style={mRow}>
+                      <div style={mName}>{it.name}</div>
+                      <div style={{fontSize:20,fontWeight:700,color:'#f0883e',flexShrink:0}}>{fmt(it.price)}</div>
+                    </div>
+                    <div style={{fontSize:11,color:'#8b949e',marginBottom:8}}>{it.dateStr} · net ~{fmt(it.price-calcFees(it.price))}</div>
+                    <div style={mFoot}>
+                      <QtyCell value={iq(it)} onChange={n=>setItems(p=>p.map(x=>x.id===it.id?{...x,qty:n}:x))}/>
+                      <div style={S.acts}>
+                        <IBtn href={ebayUrl(it.name)} title="Search eBay sold">🔍</IBtn>
+                        <IBtn onClick={()=>setItems(p=>p.map(x=>x.id===it.id?{...x,status:'listed',listedAt:todayEnGB()}:x))} title="Move to listings" col="#58a6ff">→</IBtn>
+                        <IBtn onClick={()=>{if(confirm('Remove this item?'))setItems(p=>p.filter(x=>x.id!==it.id));}} title="Remove" col="#f85149">✕</IBtn>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
               <table style={S.tbl}>
                 <thead><tr>
                   <th style={{...S.th,width:'38%'}}>Item</th>
@@ -625,8 +669,8 @@ export default function App(){
                     </tr>
                   ))}
                 </tbody>
-              </table>
-            </div>
+              </table></div>
+            )}
             <div style={S.fRow}>{filteredItems.length} of {items.filter(it=>it.categoryId===curInvCat&&it.status==='stock').reduce((s,it)=>s+iq(it),0)} copies</div>
           </>;
         })()}
@@ -640,14 +684,14 @@ export default function App(){
             {totalAllListed===0&&lstSearch===''
               ?<div style={S.empty}><div style={{fontSize:32,marginBottom:8}}>🏷️</div>No active listings.<br/><span style={{fontSize:12}}>Go to <span style={{color:'#58a6ff',cursor:'pointer'}} onClick={()=>setTab('inventory')}>Inventory</span> and press → to list an item.</span></div>
               :<>
-                <div style={{display:'flex',gap:6,marginBottom:12,flexWrap:'wrap',alignItems:'center'}}>
+                <div className="rt-cat-tabs">
                   {cats.map(c=>(
                     <button key={c.id} style={{...S.catTab,...(curLstCat===c.id?S.catTabA:{})}} onClick={()=>{setLstCat(c.id);setLstSearch('');setLstSel([]);}}>
                       {c.name} <span style={{opacity:.6}}>({counts[c.id]||0})</span>
                     </button>
                   ))}
                 </div>
-                <div style={S.toolbar}>
+                <div className="rt-toolbar">
                   <SearchBar value={lstSearch} onChange={setLstSearch} placeholder="Search listings…"/>
                   <select style={S.sel} value={lstSort} onChange={e=>setLstSort(e.target.value)}>
                     {SORT_OPTS.map(([v,l])=><option key={v} value={v}>{l}</option>)}
@@ -663,6 +707,32 @@ export default function App(){
                 {filteredListed.length===0
                   ?<div style={S.empty}>Nothing listed in this category yet. Press → on an item to list it.</div>
                   :<>
+                    {isMobile ? (
+                      <div>
+                        {filteredListed.map(it=>(
+                          <div key={it.id} style={{...mCard,background:isSel(curLstCat,it.id)?'#1c2f4a':'#161b22'}}>
+                            <div style={mRow}>
+                              <div style={{flex:1,paddingRight:8}}>
+                                <div style={{fontWeight:600,fontSize:14,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{it.name}</div>
+                                <div style={mSub}>Listed {it.listedAt||it.dateStr||'—'} · net ~{fmt(it.price-calcFees(it.price))}</div>
+                              </div>
+                              <div style={{fontSize:20,fontWeight:700,color:'#f0883e',flexShrink:0}}>{fmt(it.price)}</div>
+                            </div>
+                            <div style={mFoot}>
+                              <div style={{display:'flex',alignItems:'center',gap:6}}>
+                                <input type="checkbox" style={S.chk} checked={isSel(curLstCat,it.id)} onChange={()=>toggleSel(curLstCat,it)}/>
+                                <QtyCell value={iq(it)} onChange={n=>setItems(p=>p.map(x=>x.id===it.id?{...x,qty:n}:x))}/>
+                              </div>
+                              <div style={S.acts}>
+                                <IBtn href={ebayUrl(it.name)} title="eBay sold">🔍</IBtn>
+                                <IBtn onClick={()=>{setSellItem(it);setSoldP(it.price.toFixed(2));setMoneyInP('');setPostageP('');setSellQtyIn('1');}} title="Log sale" col="#3fb950">£</IBtn>
+                                <IBtn onClick={()=>setItems(p=>p.map(x=>x.id===it.id?{...x,status:'stock'}:x))} title="Back to inventory" col="#8b949e">←</IBtn>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
                     <div style={S.tWrap}>
                       <table style={S.tbl}>
                         <thead><tr>
@@ -694,6 +764,8 @@ export default function App(){
                         </tbody>
                       </table>
                     </div>
+                    </div>
+                    )}
                     <div style={S.fRow}>{filteredListed.length} listing{filteredListed.length!==1?'s':''} · {filteredListed.reduce((s,it)=>s+iq(it),0)} copies</div>
                   </>
                 }
@@ -788,6 +860,32 @@ export default function App(){
               <div style={S.sCard}><span style={{...S.sV,color:'#f85149'}}>{fmt(tPost)}</span><span style={S.sL}>Total postage</span></div>
               <div style={S.sCard}><span style={{...S.sV,color:tProfit>=0?'#3fb950':'#f85149'}}>{fmt(tProfit)}</span><span style={S.sL}>Total profit</span></div>
             </div>
+            {isMobile ? (
+              <div>
+                {sales.map(sa=>(
+                  <div key={sa.id} style={{...mCard,opacity:sa.refunded?.6:1,background:sa.refunded?'#1c1410':'#161b22'}}>
+                    <div style={mRow}>
+                      <div style={{flex:1,paddingRight:8}}>
+                        <div style={{fontWeight:600,fontSize:13,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{sa.itemName}{sa.refunded?' (refunded)':''}{sa.bundleId?' 📦':''}</div>
+                        <div style={mSub}>{sa.date} · qty {sa.qty||1}</div>
+                      </div>
+                      <div style={{textAlign:'right',flexShrink:0}}>
+                        <div style={{fontSize:16,fontWeight:700,color:sa.profit>=0?'#3fb950':'#f85149'}}>{fmt(sa.profit)}</div>
+                        <div style={{fontSize:11,color:'#8b949e'}}>in: {fmt(moneyReceived(sa))}</div>
+                      </div>
+                    </div>
+                    <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#8b949e'}}>
+                      <span>Sale: {fmt(sa.soldPrice)}</span>
+                      {sa.postage>0&&<span>Post: -{fmt(sa.postage)}</span>}
+                      <div style={S.acts}>
+                        {!sa.refunded&&<IBtn onClick={()=>refundSale(sa)} title="Refund" col="#d29922">↩</IBtn>}
+                        <IBtn onClick={()=>{if(confirm('Delete?'))setSales(p=>p.filter(x=>x.id!==sa.id));}} title="Delete" col="#f85149">✕</IBtn>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
             <div style={S.tWrap}>
               <table style={S.tbl}>
                 <thead><tr>
@@ -819,6 +917,7 @@ export default function App(){
                 </tbody>
               </table>
             </div>
+            )}
           </>;
         })()}
 
