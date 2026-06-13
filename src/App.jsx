@@ -6,7 +6,7 @@ import { EXPENSE_TYPES, expenseTotals, expenseShort, normalizePurchases, sumExpe
 import { isListingDeadZone, bundlePostageSavings, splitPostageAcrossItems, POSTAGE_PER_ITEM_IF_ALONE } from './bundleUtils.js';
 import { moneyReceived, feesFromInputs, saleFees } from './saleUtils.js';
 import Dashboard from './Dashboard.jsx';
-import { EBAY_CATEGORIES, EBAY_CONDITIONS, buildEbayListingUrl } from './ebayData.js';
+import { EBAY_CATEGORIES, EBAY_CONDITIONS } from './ebayData.js';
 
 // ── mobile detection ─────────────────────────────────────────────────────────
 const useIsMobile = () => {
@@ -202,6 +202,7 @@ export default function App(){
   const [lstSearch,setLstSearch]     = useState('');
   const [lstSort,setLstSort]         = useState('price-desc');
   const [lstSel,setLstSel]           = useState([]);
+  const [invSel,setInvSel]           = useState([]);
   const [bundleSell,setBundleSell]   = useState(null);
   const [bundlePost,setBundlePost]   = useState('');
 
@@ -338,7 +339,7 @@ export default function App(){
 
   const monthlyPL = useMemo(()=>{
     const map={};
-    const ensure=k=>{ if(!map[k]) map[k]={revenue:0,fees:0,postage:0,stockSpend:0,postageEquip:0,supplies:0,profit:0,sales:0}; };
+    const ensure=k=>{ if(!map[k]) map[k]={revenue:0,fees:0,postage:0,stockSpend:0,postageEquip:0,supplies:0,refunds:0,profit:0,sales:0}; };
     activeSales(sales).forEach(s=>{
       const d=parseEnGBDate(s.date)||new Date(); const k=monthKey(d); ensure(k);
       map[k].revenue+=s.soldPrice||0; map[k].fees+=saleFees(s);
@@ -350,10 +351,11 @@ export default function App(){
       const t=p.type||'stock';
       if(t==='postage') map[k].postageEquip+=p.amount||0;
       else if(t==='supplies') map[k].supplies+=p.amount||0;
+      else if(t==='refunds') map[k].refunds+=p.amount||0;
       else map[k].stockSpend+=p.amount||0;
     });
     return Object.entries(map).map(([key,v])=>{
-      const businessCosts=v.stockSpend+v.postageEquip+v.supplies;
+      const businessCosts=v.stockSpend+v.postageEquip+v.supplies+(v.refunds||0);
       return{key,label:formatMonthLabel(key),...v,businessCosts,netProfit:+(v.profit-businessCosts).toFixed(2)};
     }).sort((a,b)=>b.key.localeCompare(a.key));
   },[sales,purchases]);
@@ -491,6 +493,27 @@ export default function App(){
   };
 
   const saveCfg=()=>{ const u={...cfgForm,baseFee:Number(cfgForm.baseFee)||15,postage:Number(cfgForm.postage)||1,initialSpend:Number(cfgForm.initialSpend)||0}; setCfg(u);setCfgForm(u);setShowCfg(false); };
+
+  // ── Bulk inventory selection ──────────────────────────────────
+  const invSelKey = id => String(id);
+  const isInvSel = id => invSel.includes(invSelKey(id));
+  const toggleInvSel = id => {
+    const k = invSelKey(id);
+    setInvSel(p => p.includes(k) ? p.filter(x=>x!==k) : [...p,k]);
+  };
+  const toggleAllInvVisible = items => {
+    if(!items.length) return;
+    const keys = items.map(it=>invSelKey(it.id));
+    const allOn = items.every(it=>isInvSel(it.id));
+    setInvSel(p => allOn ? p.filter(x=>!keys.includes(x)) : [...new Set([...p,...keys])]);
+  };
+  const deleteInvSelection = () => {
+    const n = invSel.length;
+    if(!n) return;
+    if(!confirm(`Remove ${n} selected item${n!==1?'s':''} from inventory?`)) return;
+    setItems(p=>p.filter(it=>!invSel.includes(invSelKey(it.id))));
+    setInvSel([]);
+  };
 
   const handleOpenPortal = async () => {
     const fallback = 'https://app.lemonsqueezy.com/my-orders';
@@ -641,15 +664,25 @@ export default function App(){
               {!isMobile&&<select style={S.sel} value={invSort} onChange={e=>setInvSort(e.target.value)}>
                 {SORT_OPTS.map(([v,l])=><option key={v} value={v}>{l}</option>)}
               </select>}
+              {invSel.length>0&&(
+                <>
+                  <span style={{fontSize:12,color:'#58a6ff'}}>{invSel.length} selected</span>
+                  <button style={{...S.mBtn,fontSize:12,padding:'5px 10px',color:'#f85149',borderColor:'#f85149'}} onClick={deleteInvSelection}>🗑 Delete selected</button>
+                  <button style={{...S.mBtn,fontSize:12,padding:'5px 10px'}} onClick={()=>setInvSel([])}>Clear</button>
+                </>
+              )}
               <button style={S.addBtn} onClick={()=>{setAddName('');setAddPrice('');setAddQty('1');setShowAddItem(true);}}>＋ Add item</button>
             </div>
             {isMobile ? (
               <div>
                 {filteredItems.length===0&&<div style={S.empty}>No items — tap ＋ Add item to get started</div>}
                 {filteredItems.map(it=>(
-                  <div key={it.id} style={mCard}>
+                  <div key={it.id} style={{...mCard,background:isInvSel(it.id)?'#1c2f4a':'#161b22'}}>
                     <div style={mRow}>
-                      <div style={mName}>{it.name}</div>
+                      <div style={{display:'flex',alignItems:'flex-start',gap:8,flex:1,paddingRight:8}}>
+                        <input type="checkbox" style={{...S.chk,marginTop:2,flexShrink:0}} checked={isInvSel(it.id)} onChange={()=>toggleInvSel(it.id)}/>
+                        <div style={mName}>{it.name}</div>
+                      </div>
                       <div style={{fontSize:20,fontWeight:700,color:'#f0883e',flexShrink:0}}>{fmt(it.price)}</div>
                     </div>
                     <div style={{fontSize:11,color:'#8b949e',marginBottom:4}}>{it.dateStr}{it.condition?' · '+it.condition:''}{it.buyCost>0?' · cost: '+fmt(it.buyCost):''}</div>
@@ -658,7 +691,6 @@ export default function App(){
                       <QtyCell value={iq(it)} onChange={n=>setItems(p=>p.map(x=>x.id===it.id?{...x,qty:n}:x))}/>
                       <div style={S.acts}>
                         <IBtn href={ebayUrl(it.name)} title="Search eBay sold">🔍</IBtn>
-                        <IBtn onClick={()=>{window.open(buildEbayListingUrl(it,cfg),'_blank');setItems(p=>p.map(x=>x.id===it.id?{...x,status:'listed',listedAt:todayEnGB()}:x));}} title="List on eBay" col="#f0883e">🏷</IBtn>
                         <IBtn onClick={()=>setItems(p=>p.map(x=>x.id===it.id?{...x,status:'listed',listedAt:todayEnGB()}:x))} title="Move to listings" col="#58a6ff">→</IBtn>
                         <IBtn onClick={()=>{if(confirm('Remove this item?'))setItems(p=>p.filter(x=>x.id!==it.id));}} title="Remove" col="#f85149">✕</IBtn>
                       </div>
@@ -669,7 +701,8 @@ export default function App(){
             ) : (
               <div style={S.tWrap}><table style={S.tbl}>
                 <thead><tr>
-                  <th style={{...S.th,width:'30%'}}>Item</th>
+                  <th style={{...S.th,width:'4%',textAlign:'center'}}><input type="checkbox" style={S.chk} title="Select all visible" checked={filteredItems.length>0&&filteredItems.every(it=>isInvSel(it.id))} onChange={()=>toggleAllInvVisible(filteredItems)}/></th>
+                  <th style={{...S.th,width:'26%'}}>Item</th>
                   <th style={{...S.th,width:'7%',textAlign:'center'}}>Qty</th>
                   <th style={{...S.th,width:'9%'}}>Added</th>
                   <th style={{...S.th,width:'9%',textAlign:'right'}}>Value</th>
@@ -680,7 +713,8 @@ export default function App(){
                 <tbody>
                   {filteredItems.length===0&&<tr><td colSpan={6} style={S.empty}>No items — click ＋ Add item to get started</td></tr>}
                   {filteredItems.map((it,i)=>(
-                    <tr key={it.id} style={{background:i%2===0?'transparent':'#161b22'}}>
+                    <tr key={it.id} style={{background:isInvSel(it.id)?'#1c2f4a':i%2===0?'transparent':'#161b22'}}>
+                      <td style={{...S.td,textAlign:'center'}}><input type="checkbox" style={S.chk} checked={isInvSel(it.id)} onChange={()=>toggleInvSel(it.id)}/></td>
                       <td style={S.td}><span style={{display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={it.name}>{it.name}</span>{it.condition&&<span style={{fontSize:10,color:'#8b949e',display:'block'}}>{it.condition}</span>}</td>
                       <td style={S.td}><QtyCell value={iq(it)} onChange={n=>setItems(p=>p.map(x=>x.id===it.id?{...x,qty:n}:x))}/></td>
                       <td style={{...S.td,color:'#8b949e',fontSize:11}}>{it.dateStr}</td>
@@ -689,7 +723,6 @@ export default function App(){
                       <td style={{...S.td,textAlign:'right',fontSize:11}}>{(()=>{const p=it.price-calcFees(it.price)-(it.buyCost||0);return <span style={{color:p>=0?'#3fb950':'#f85149',fontWeight:p>0?600:400}}>{fmt(p)}</span>;})()}</td>
                       <td style={S.td}><div style={S.acts}>
                         <IBtn href={ebayUrl(it.name)} title="Search eBay sold prices">🔍</IBtn>
-                        <IBtn onClick={()=>{window.open(buildEbayListingUrl(it,cfg),'_blank');setItems(p=>p.map(x=>x.id===it.id?{...x,status:'listed',listedAt:todayEnGB()}:x));}} title="List on eBay — opens pre-filled listing and moves to Active Listings" col="#f0883e">🏷</IBtn>
                         <IBtn onClick={()=>setItems(p=>p.map(x=>x.id===it.id?{...x,status:'listed',listedAt:todayEnGB()}:x))} title="Move to Active Listings without opening eBay" col="#58a6ff">→</IBtn>
                         <IBtn onClick={()=>{if(confirm('Remove this item?'))setItems(p=>p.filter(x=>x.id!==it.id));}} title="Remove" col="#f85149">✕</IBtn>
                       </div></td>
@@ -958,7 +991,7 @@ export default function App(){
             <div style={S.tWrap}>
               <table style={{...S.tbl,tableLayout:'auto'}}>
                 <thead><tr>
-                  {['Month','Revenue','eBay fees','Postage out','Stock spend','Other costs','Gross profit','Net profit'].map(h=>(
+                  {['Month','Revenue','eBay fees','Postage out','Stock spend','Other costs','Refunds','Gross profit','Net profit'].map(h=>(
                     <th key={h} style={{...S.th,textAlign:h==='Month'?'left':'right'}}>{h}</th>
                   ))}
                 </tr></thead>
@@ -971,6 +1004,7 @@ export default function App(){
                       <td style={{...S.td,textAlign:'right',color:'#f85149',fontSize:11}}>−{fmt(r.postage)}</td>
                       <td style={{...S.td,textAlign:'right',color:'#f85149',fontSize:11}}>−{fmt(r.stockSpend)}</td>
                       <td style={{...S.td,textAlign:'right',color:'#f85149',fontSize:11}}>−{fmt(r.postageEquip+r.supplies)}</td>
+                      <td style={{...S.td,textAlign:'right',color:'#a371f7',fontSize:11}}>{(r.refunds||0)>0?'−'+fmt(r.refunds||0):'—'}</td>
                       <td style={{...S.td,textAlign:'right',fontWeight:600,color:r.profit>=0?'#3fb950':'#f85149'}}>{fmt(r.profit)}</td>
                       <td style={{...S.td,textAlign:'right',fontWeight:700,color:r.netProfit>=0?'#3fb950':'#f85149'}}>{fmt(r.netProfit)}</td>
                     </tr>
