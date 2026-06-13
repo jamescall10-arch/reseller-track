@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, CartesianGrid, AreaChart, Area, LineChart, Line,
+  PieChart, Pie, Cell, CartesianGrid, AreaChart, Area,
 } from 'recharts';
 import { parseEnGBDate, monthKey, currentTaxYearBounds, isInTaxYear, dayKey, formatDayLabel, lastNDayKeys } from './dateUtils.js';
-import { saleFees, moneyReceived } from './saleUtils.js';
+import { saleFees, saleFeePct, moneyReceived, computeFeeTierData } from './saleUtils.js';
+import { computeBundleStats } from './bundleUtils.js';
 import { NET_TRACK_RANGES, buildNetTrackerSeries } from './netTracker.js';
 
 const fmt = (n,sym='£') => (n<0?'-':'')+sym+Math.abs(n).toFixed(2);
@@ -23,7 +24,6 @@ const rangeBtn = active => ({
   color:active?'#e6edf3':'#8b949e', cursor:'pointer', fontSize:12, fontWeight:active?600:400,
 });
 
-// ── Mobile chart expand modal ─────────────────────────────────
 function ExpandModal({ title, onClose, children }) {
   return (
     <div style={{position:'fixed',inset:0,background:'#0d1117',zIndex:300,display:'flex',flexDirection:'column'}}>
@@ -31,15 +31,12 @@ function ExpandModal({ title, onClose, children }) {
         <span style={{fontSize:15,fontWeight:600,color:'#e6edf3'}}>{title}</span>
         <button onClick={onClose} style={{background:'transparent',border:'1px solid #30363d',color:'#e6edf3',borderRadius:6,padding:'5px 12px',cursor:'pointer',fontSize:13}}>✕ Close</button>
       </div>
-      <div style={{flex:1,overflowY:'auto',padding:16}}>
-        {children}
-      </div>
+      <div style={{flex:1,overflowY:'auto',padding:16}}>{children}</div>
     </div>
   );
 }
 
-// ── Mobile sparkline card ─────────────────────────────────────
-function SparkCard({ title, value, valueColor, series, dataKey, color, onExpand, sym }) {
+function SparkCard({ title, value, valueColor, series, dataKey, color, onExpand }) {
   return (
     <div style={{...card, cursor:'pointer', marginBottom:0}} onClick={onExpand}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6}}>
@@ -64,11 +61,10 @@ function SparkCard({ title, value, valueColor, series, dataKey, color, onExpand,
   );
 }
 
-// ── Main Dashboard ────────────────────────────────────────────
 export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases, items, cats, sym='£', isMobile=false }){
   const logged = activeSales(sales);
   const [netRange,setNetRange] = useState('month');
-  const [expanded,setExpanded] = useState(null); // { title, component }
+  const [expanded,setExpanded] = useState(null);
 
   const thisMonthKey = monthKey(new Date());
   const thisMonth = useMemo(()=>{
@@ -87,6 +83,7 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
     { name:'Stock', value:expenses.stock, color:'#f85149' },
     { name:'Post equip', value:expenses.postage, color:'#f0883e' },
     { name:'Supplies', value:expenses.supplies, color:'#d29922' },
+    { name:'Refunds', value:expenses.refunds||0, color:'#a371f7' },
   ].filter(d=>d.value>0),[expenses]);
 
   const categoryPie = useMemo(()=>{
@@ -98,6 +95,11 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
     });
     return rows.filter(d=>d.value>0).sort((a,b)=>b.value-a.value);
   },[items,cats]);
+
+  const feeTierData = useMemo(()=>computeFeeTierData(sales),[sales]);
+  const hasFeeTierSales = feeTierData.some(t=>t.sales>0);
+
+  const bundleStats = useMemo(()=>computeBundleStats(sales),[sales]);
 
   const listValue = useMemo(()=>(items||[])
     .filter(it=>it.status==='stock'||it.status==='listed')
@@ -119,6 +121,12 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
     const map = new Map(dailyKeys.map(k=>[k,0]));
     logged.forEach(s=>{ const k=dayKey(parseEnGBDate(s.date)); if(k&&map.has(k)) map.set(k,map.get(k)+(s.soldPrice||0)); });
     return dailyKeys.map(key=>({ day:formatDayLabel(key), amount:+map.get(key).toFixed(2) }));
+  },[logged,dailyKeys]);
+
+  const dailySalesVolume = useMemo(()=>{
+    const map = new Map(dailyKeys.map(k=>[k,0]));
+    logged.forEach(s=>{ const k=dayKey(parseEnGBDate(s.date)); if(k&&map.has(k)) map.set(k,map.get(k)+(s.qty||1)); });
+    return dailyKeys.map(key=>({ day:formatDayLabel(key), copies:map.get(key) }));
   },[logged,dailyKeys]);
 
   const dailyListings = useMemo(()=>{
@@ -145,7 +153,7 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
     { label:'After all costs',     value:fmt(trueNet,sym),      color:trueNet>=0?'#3fb950':'#f85149', sub:'Profit minus logged spend' },
   ];
 
-  // ── Full chart components (used in expanded modal too) ────────
+  // ── Reusable chart components ──────────────────────────────────
   const NetTrackerFull = () => (
     <div>
       <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:14}}>
@@ -153,8 +161,7 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
           <button key={r.id} type="button" style={rangeBtn(netRange===r.id)} onClick={()=>setNetRange(r.id)}>{r.label}</button>
         ))}
       </div>
-      {!hasNetData
-        ? <Empty>Log sales and business spend to track your net position</Empty>
+      {!hasNetData ? <Empty>Log sales and business spend to track your net position</Empty>
         : <ResponsiveContainer width="100%" height={isMobile?220:280}>
             <AreaChart data={netTrackerSeries} margin={{top:8,right:8,left:0,bottom:0}}>
               <defs>
@@ -175,8 +182,7 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
   );
 
   const PLFull = () => (
-    last6Months.length===0
-      ? <Empty>No sales yet</Empty>
+    last6Months.length===0 ? <Empty>No sales yet</Empty>
       : <ResponsiveContainer width="100%" height={isMobile?220:260}>
           <BarChart data={last6Months} margin={{top:4,right:8,left:0,bottom:0}}>
             <CartesianGrid strokeDasharray="3 3" stroke={gridStroke}/>
@@ -191,12 +197,12 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
   );
 
   const ExpensePieFull = () => (
-    expensePie.length===0
-      ? <Empty>No expenses logged yet</Empty>
+    expensePie.length===0 ? <Empty>No expenses logged yet</Empty>
       : <div>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
-              <Pie data={expensePie} cx="50%" cy="50%" outerRadius={75} dataKey="value" label={isMobile?false:({name,percent})=>`${name} ${(percent*100).toFixed(0)}%`} labelLine={!isMobile}>
+              <Pie data={expensePie} cx="50%" cy="50%" outerRadius={isMobile?60:75} dataKey="value"
+                label={isMobile?false:({name,percent})=>`${name} ${(percent*100).toFixed(0)}%`} labelLine={!isMobile}>
                 {expensePie.map((e,i)=><Cell key={e.name} fill={e.color||COLORS[i%COLORS.length]}/>)}
               </Pie>
               <Tooltip contentStyle={tipStyle} formatter={v=>[fmt(v,sym)]}/>
@@ -207,12 +213,12 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
   );
 
   const CategoryPieFull = () => (
-    categoryPie.length===0
-      ? <Empty>Add items to see category breakdown</Empty>
+    categoryPie.length===0 ? <Empty>Add items to see category breakdown</Empty>
       : <div>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
-              <Pie data={categoryPie} cx="50%" cy="50%" outerRadius={75} dataKey="value" label={isMobile?false:({name,percent})=>`${name} ${(percent*100).toFixed(0)}%`} labelLine={!isMobile}>
+              <Pie data={categoryPie} cx="50%" cy="50%" outerRadius={isMobile?60:75} dataKey="value"
+                label={isMobile?false:({name,percent})=>`${name} ${(percent*100).toFixed(0)}%`} labelLine={!isMobile}>
                 {categoryPie.map((_,i)=><Cell key={i} fill={COLORS[i%COLORS.length]}/>)}
               </Pie>
               <Tooltip contentStyle={tipStyle} formatter={v=>[fmt(v,sym)]}/>
@@ -225,12 +231,7 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
   const DailySalesFull = () => (
     <ResponsiveContainer width="100%" height={isMobile?200:220}>
       <AreaChart data={dailySales} margin={{top:4,right:8,left:0,bottom:0}}>
-        <defs>
-          <linearGradient id="dsFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#58a6ff" stopOpacity={0.3}/>
-            <stop offset="100%" stopColor="#58a6ff" stopOpacity={0.02}/>
-          </linearGradient>
-        </defs>
+        <defs><linearGradient id="dsFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#58a6ff" stopOpacity={0.3}/><stop offset="100%" stopColor="#58a6ff" stopOpacity={0.02}/></linearGradient></defs>
         <CartesianGrid strokeDasharray="3 3" stroke={gridStroke}/>
         <XAxis dataKey="day" tick={axisStyle} tickLine={false} interval="preserveStartEnd"/>
         <YAxis tick={axisStyle} tickLine={false} axisLine={false} tickFormatter={v=>sym+v} width={50}/>
@@ -240,15 +241,23 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
     </ResponsiveContainer>
   );
 
+  const DailyVolumeFull = () => (
+    <ResponsiveContainer width="100%" height={isMobile?200:220}>
+      <AreaChart data={dailySalesVolume} margin={{top:4,right:8,left:0,bottom:0}}>
+        <defs><linearGradient id="dvFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3fb950" stopOpacity={0.3}/><stop offset="100%" stopColor="#3fb950" stopOpacity={0.02}/></linearGradient></defs>
+        <CartesianGrid strokeDasharray="3 3" stroke={gridStroke}/>
+        <XAxis dataKey="day" tick={axisStyle} tickLine={false} interval="preserveStartEnd"/>
+        <YAxis tick={axisStyle} tickLine={false} axisLine={false} width={30}/>
+        <Tooltip contentStyle={tipStyle} formatter={v=>[v,'Copies sold']}/>
+        <Area type="monotone" dataKey="copies" stroke="#3fb950" fill="url(#dvFill)" strokeWidth={2} dot={false}/>
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+
   const DailyListingsFull = () => (
     <ResponsiveContainer width="100%" height={isMobile?200:220}>
       <AreaChart data={dailyListings} margin={{top:4,right:8,left:0,bottom:0}}>
-        <defs>
-          <linearGradient id="dlFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#a371f7" stopOpacity={0.3}/>
-            <stop offset="100%" stopColor="#a371f7" stopOpacity={0.02}/>
-          </linearGradient>
-        </defs>
+        <defs><linearGradient id="dlFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#a371f7" stopOpacity={0.3}/><stop offset="100%" stopColor="#a371f7" stopOpacity={0.02}/></linearGradient></defs>
         <CartesianGrid strokeDasharray="3 3" stroke={gridStroke}/>
         <XAxis dataKey="day" tick={axisStyle} tickLine={false} interval="preserveStartEnd"/>
         <YAxis tick={axisStyle} tickLine={false} axisLine={false} width={30}/>
@@ -258,17 +267,24 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
     </ResponsiveContainer>
   );
 
+  const FeeTierFull = () => (
+    !hasFeeTierSales ? <Empty>Log sales to see fee rates by price band</Empty>
+      : <ResponsiveContainer width="100%" height={200}>
+          <BarChart data={feeTierData} layout="vertical" margin={{top:4,right:16,left:4,bottom:0}}>
+            <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} horizontal={false}/>
+            <XAxis type="number" tick={axisStyle} tickFormatter={v=>`${v}%`} domain={[0,'auto']}/>
+            <YAxis type="category" dataKey="tier" tick={axisStyle} width={70}/>
+            <Tooltip contentStyle={tipStyle} formatter={(v,name,props)=>[`${v}% (${props.payload.sales} sale${props.payload.sales!==1?'s':''})`, 'Avg fee']}/>
+            <Bar dataKey="avgFeePct" name="Avg fee %" fill="#f85149" radius={[0,3,3,0]}/>
+          </BarChart>
+        </ResponsiveContainer>
+  );
+
   // ── MOBILE LAYOUT ──────────────────────────────────────────────
   if(isMobile) return (
     <div>
-      {/* Expanded chart modal */}
-      {expanded&&(
-        <ExpandModal title={expanded.title} onClose={()=>setExpanded(null)}>
-          {expanded.component}
-        </ExpandModal>
-      )}
+      {expanded&&<ExpandModal title={expanded.title} onClose={()=>setExpanded(null)}>{expanded.component}</ExpandModal>}
 
-      {/* 2x2 KPI grid */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
         {kpis.map(k=>(
           <div key={k.label} style={{background:'#161b22',border:'1px solid #30363d',borderRadius:8,padding:'10px 12px'}}>
@@ -279,85 +295,48 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
         ))}
       </div>
 
-      {/* Sparkline cards */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
-        <SparkCard
-          title="Net position"
-          value={fmt(netEnd,sym)}
-          valueColor={netEnd>=0?'#3fb950':'#f85149'}
-          series={netTrackerSeries}
-          dataKey="net"
-          color={netEnd>=0?'#3fb950':'#f85149'}
-          onExpand={()=>setExpanded({title:'After all costs — net tracker',component:<NetTrackerFull/>})}
-          sym={sym}
-        />
-        <SparkCard
-          title="Monthly revenue"
-          value={fmt(thisMonth.revenue,sym)}
-          valueColor="#58a6ff"
-          series={last6Months}
-          dataKey="revenue"
-          color="#58a6ff"
-          onExpand={()=>setExpanded({title:'Monthly revenue vs profit',component:<PLFull/>})}
-          sym={sym}
-        />
-        <SparkCard
-          title="Daily revenue"
-          value={fmt(dailySales.reduce((a,d)=>a+d.amount,0),sym)+' / 30d'}
-          valueColor="#58a6ff"
-          series={dailySales}
-          dataKey="amount"
-          color="#58a6ff"
-          onExpand={()=>setExpanded({title:'Daily revenue — last 30 days',component:<DailySalesFull/>})}
-          sym={sym}
-        />
-        <SparkCard
-          title="Daily listings"
-          value={dailyListings.reduce((a,d)=>a+d.copies,0)+' listed / 30d'}
-          valueColor="#a371f7"
-          series={dailyListings}
-          dataKey="copies"
-          color="#a371f7"
-          onExpand={()=>setExpanded({title:'Daily listings — last 30 days',component:<DailyListingsFull/>})}
-          sym={sym}
-        />
+        <SparkCard title="Net position" value={fmt(netEnd,sym)} valueColor={netEnd>=0?'#3fb950':'#f85149'} series={netTrackerSeries} dataKey="net" color={netEnd>=0?'#3fb950':'#f85149'} onExpand={()=>setExpanded({title:'After all costs',component:<NetTrackerFull/>})} sym={sym}/>
+        <SparkCard title="Monthly revenue" value={fmt(thisMonth.revenue,sym)} valueColor="#58a6ff" series={last6Months} dataKey="revenue" color="#58a6ff" onExpand={()=>setExpanded({title:'Monthly revenue vs profit',component:<PLFull/>})} sym={sym}/>
+        <SparkCard title="Daily revenue" value={fmt(dailySales.reduce((a,d)=>a+d.amount,0),sym)+' / 30d'} valueColor="#58a6ff" series={dailySales} dataKey="amount" color="#58a6ff" onExpand={()=>setExpanded({title:'Daily revenue — last 30 days',component:<DailySalesFull/>})} sym={sym}/>
+        <SparkCard title="Copies sold" value={dailySalesVolume.reduce((a,d)=>a+d.copies,0)+' / 30d'} valueColor="#3fb950" series={dailySalesVolume} dataKey="copies" color="#3fb950" onExpand={()=>setExpanded({title:'Copies sold per day',component:<DailyVolumeFull/>})} sym={sym}/>
+        <SparkCard title="Daily listings" value={dailyListings.reduce((a,d)=>a+d.copies,0)+' listed / 30d'} valueColor="#a371f7" series={dailyListings} dataKey="copies" color="#a371f7" onExpand={()=>setExpanded({title:'Daily listings — last 30 days',component:<DailyListingsFull/>})} sym={sym}/>
+        <div style={{...card,marginBottom:0,cursor:'pointer'}} onClick={()=>setExpanded({title:'eBay fees by price band',component:<FeeTierFull/>})}>
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}><div style={{fontSize:12,fontWeight:600}}>Fee tiers</div><div style={{fontSize:11,color:'#58a6ff'}}>View →</div></div>
+          {feeTierData.map(t=>(
+            <div key={t.tier} style={{display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:3}}>
+              <span style={{color:'#8b949e'}}>{t.tier}</span>
+              <span style={{color:'#f85149',fontWeight:600}}>{t.avgFeePct}%</span>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* Pie charts - tap to expand */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
         <div style={{...card,marginBottom:0,cursor:'pointer'}} onClick={()=>setExpanded({title:'Expense breakdown',component:<ExpensePieFull/>})}>
-          <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}>
-            <div style={{fontSize:12,fontWeight:600}}>Expenses</div>
-            <div style={{fontSize:11,color:'#58a6ff'}}>View →</div>
-          </div>
-          {expensePie.length===0
-            ? <div style={{fontSize:11,color:'#6e7681'}}>None logged yet</div>
-            : expensePie.map((e,i)=>(
-                <div key={e.name} style={{display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:3}}>
-                  <span style={{color:'#8b949e'}}>{e.name}</span>
-                  <span style={{color:e.color,fontWeight:600}}>{fmt(e.value,sym)}</span>
-                </div>
-              ))
-          }
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}><div style={{fontSize:12,fontWeight:600}}>Expenses</div><div style={{fontSize:11,color:'#58a6ff'}}>View →</div></div>
+          {expensePie.length===0?<div style={{fontSize:11,color:'#6e7681'}}>None logged yet</div>:expensePie.map((e,i)=>(<div key={e.name} style={{display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:3}}><span style={{color:'#8b949e'}}>{e.name}</span><span style={{color:e.color,fontWeight:600}}>{fmt(e.value,sym)}</span></div>))}
         </div>
         <div style={{...card,marginBottom:0,cursor:'pointer'}} onClick={()=>setExpanded({title:'Inventory by category',component:<CategoryPieFull/>})}>
-          <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}>
-            <div style={{fontSize:12,fontWeight:600}}>Inventory</div>
-            <div style={{fontSize:11,color:'#58a6ff'}}>View →</div>
-          </div>
-          {categoryPie.length===0
-            ? <div style={{fontSize:11,color:'#6e7681'}}>No items yet</div>
-            : categoryPie.slice(0,4).map((e,i)=>(
-                <div key={e.name} style={{display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:3}}>
-                  <span style={{color:'#8b949e'}}>{e.name}</span>
-                  <span style={{color:COLORS[i%COLORS.length],fontWeight:600}}>{fmt(e.value,sym)}</span>
-                </div>
-              ))
-          }
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}><div style={{fontSize:12,fontWeight:600}}>Inventory</div><div style={{fontSize:11,color:'#58a6ff'}}>View →</div></div>
+          {categoryPie.length===0?<div style={{fontSize:11,color:'#6e7681'}}>No items yet</div>:categoryPie.slice(0,4).map((e,i)=>(<div key={e.name} style={{display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:3}}><span style={{color:'#8b949e'}}>{e.name}</span><span style={{color:COLORS[i%COLORS.length],fontWeight:600}}>{fmt(e.value,sym)}</span></div>))}
         </div>
       </div>
 
-      {/* Stock vs listed */}
+      {bundleStats.bundleCount>0&&(
+        <div style={{...card,marginBottom:12}}>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>Bundle postage savings</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8}}>
+            {[['Bundles',bundleStats.bundleCount,'#58a6ff'],['Items in bundles',bundleStats.itemsInBundles,'#e6edf3'],['Total saved',fmt(bundleStats.totalSavings,sym),'#3fb950'],['Avg per bundle',fmt(bundleStats.avgSavings,sym),'#3fb950']].map(([l,v,c])=>(
+              <div key={l} style={{background:'#21262d',borderRadius:6,padding:'8px 10px'}}>
+                <div style={{fontSize:10,color:'#8b949e',marginBottom:2}}>{l}</div>
+                <div style={{fontSize:16,fontWeight:700,color:c}}>{v}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div style={{...card,marginBottom:12}}>
         <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>Stock overview</div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
@@ -370,25 +349,20 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
         </div>
       </div>
 
-      {/* Tax year strip */}
       <div style={card}>
         <div style={{fontSize:12,fontWeight:600,marginBottom:6}}>Tax year gross</div>
-        <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#8b949e',marginBottom:5}}>
-          <span>Toward £1,000 allowance</span>
-          <span style={{color:taxYear.gross<1000?'#3fb950':'#f85149',fontWeight:600}}>{fmt(taxYear.gross,sym)}</span>
-        </div>
-        <div style={{background:'#21262d',borderRadius:4,height:6,overflow:'hidden'}}>
-          <div style={{width:`${taxYear.pct}%`,height:'100%',background:taxYear.gross<1000?'#3fb950':'#f85149',borderRadius:4}}/>
-        </div>
+        <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#8b949e',marginBottom:5}}><span>Toward £1,000 allowance</span><span style={{color:taxYear.gross<1000?'#3fb950':'#f85149',fontWeight:600}}>{fmt(taxYear.gross,sym)}</span></div>
+        <div style={{background:'#21262d',borderRadius:4,height:6,overflow:'hidden'}}><div style={{width:`${taxYear.pct}%`,height:'100%',background:taxYear.gross<1000?'#3fb950':'#f85149',borderRadius:4}}/></div>
       </div>
     </div>
   );
 
-  // ── DESKTOP LAYOUT (unchanged) ─────────────────────────────────
+  // ── DESKTOP LAYOUT ─────────────────────────────────────────────
   return(
     <div>
       <p style={{fontSize:12,color:'#8b949e',margin:'0 0 12px'}}>Welcome to your reseller dashboard</p>
 
+      {/* KPIs */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:14}}>
         {kpis.map(k=>(
           <div key={k.label} style={{background:'#161b22',border:'1px solid #30363d',borderRadius:8,padding:'14px 16px'}}>
@@ -399,7 +373,8 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
         ))}
       </div>
 
-      <div style={{...card}}>
+      {/* Net tracker */}
+      <div style={card}>
         <div style={{display:'flex',flexWrap:'wrap',alignItems:'flex-start',justifyContent:'space-between',gap:12,marginBottom:12}}>
           <div>
             <div style={{fontSize:15,fontWeight:600,marginBottom:4}}>After all costs</div>
@@ -412,50 +387,69 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
           </div>
         </div>
         <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:14}}>
-          {NET_TRACK_RANGES.map(r=>(
-            <button key={r.id} type="button" style={rangeBtn(netRange===r.id)} onClick={()=>setNetRange(r.id)}>{r.label}</button>
-          ))}
+          {NET_TRACK_RANGES.map(r=>(<button key={r.id} type="button" style={rangeBtn(netRange===r.id)} onClick={()=>setNetRange(r.id)}>{r.label}</button>))}
         </div>
-        {!hasNetData
-          ? <Empty>Log sales and business spend to track your net position</Empty>
-          : <ResponsiveContainer width="100%" height={280}>
-              <AreaChart data={netTrackerSeries} margin={{top:8,right:12,left:4,bottom:0}}>
-                <defs>
-                  <linearGradient id="netFillD" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={netEnd>=0?'#3fb950':'#f85149'} stopOpacity={0.3}/>
-                    <stop offset="100%" stopColor={netEnd>=0?'#3fb950':'#f85149'} stopOpacity={0.02}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke={gridStroke}/>
-                <XAxis dataKey="label" tick={axisStyle} tickLine={false} interval="preserveStartEnd"/>
-                <YAxis tick={axisStyle} tickLine={false} axisLine={false} tickFormatter={v=>sym+v}/>
-                <Tooltip contentStyle={tipStyle} formatter={v=>[fmt(v,sym),'Net']}/>
-                <Area type="monotone" dataKey="net" stroke={netEnd>=0?'#3fb950':'#f85149'} fill="url(#netFillD)" strokeWidth={2} dot={false}/>
-              </AreaChart>
-            </ResponsiveContainer>
-        }
+        <NetTrackerFull/>
       </div>
 
+      {/* Monthly P&L + Expense pie */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}}>
+        <div style={card}><div style={{fontSize:13,fontWeight:600,marginBottom:12}}>Monthly revenue vs profit</div><PLFull/></div>
+        <div style={card}><div style={{fontSize:13,fontWeight:600,marginBottom:12}}>Expense breakdown</div><ExpensePieFull/></div>
+      </div>
+
+      {/* Category pie + Bundle stats */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}}>
+        <div style={card}><div style={{fontSize:13,fontWeight:600,marginBottom:12}}>Inventory value by category</div><CategoryPieFull/></div>
         <div style={card}>
-          <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>Monthly revenue vs profit</div>
-          <PLFull/>
-        </div>
-        <div style={card}>
-          <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>Expense breakdown</div>
-          <ExpensePieFull/>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>Bundle postage savings</div>
+          <div style={{fontSize:11,color:'#8b949e',marginBottom:12}}>Postage saved vs selling each item separately</div>
+          {bundleStats.bundleCount===0
+            ? <div style={{fontSize:12,color:'#6e7681',padding:'8px 0'}}>No bundle sales yet. On Active Listings tick 2+ items and use "Bundle sale".</div>
+            : <>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8,marginBottom:14}}>
+                  {[['Bundle orders',bundleStats.bundleCount,'#58a6ff'],['Items in bundles',bundleStats.itemsInBundles,'#e6edf3'],['Total postage saved',fmt(bundleStats.totalSavings,sym),'#3fb950'],['Avg saved per bundle',fmt(bundleStats.avgSavings,sym),'#3fb950']].map(([l,v,c])=>(
+                    <div key={l} style={{background:'#21262d',borderRadius:6,padding:'10px 12px'}}>
+                      <div style={{fontSize:10,color:'#8b949e',marginBottom:2}}>{l}</div>
+                      <div style={{fontSize:18,fontWeight:700,color:c}}>{v}</div>
+                    </div>
+                  ))}
+                </div>
+                {bundleStats.recent.length>0&&(
+                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
+                    <thead><tr style={{color:'#6e7681',textAlign:'left'}}>
+                      {['Date','Items','Revenue','Postage','Saved','Profit'].map(h=><th key={h} style={{padding:'4px 6px 4px 0',fontWeight:500}}>{h}</th>)}
+                    </tr></thead>
+                    <tbody>
+                      {bundleStats.recent.map(b=>(
+                        <tr key={b.id} style={{borderTop:'1px solid #21262d'}}>
+                          <td style={{padding:'5px 6px 5px 0',color:'#8b949e'}}>{b.date}</td>
+                          <td style={{padding:'5px 6px'}}>{b.itemCount}</td>
+                          <td style={{padding:'5px 6px',textAlign:'right'}}>{fmt(b.revenue,sym)}</td>
+                          <td style={{padding:'5px 6px',textAlign:'right',color:'#f85149'}}>{fmt(b.postageTotal,sym)}</td>
+                          <td style={{padding:'5px 6px',textAlign:'right',color:'#3fb950'}}>{fmt(b.savings,sym)}</td>
+                          <td style={{padding:'5px 0 5px 6px',textAlign:'right',fontWeight:600,color:b.profit>=0?'#3fb950':'#f85149'}}>{fmt(b.profit,sym)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </>
+          }
         </div>
       </div>
 
+      {/* Fee tier + Stock vs listed */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}}>
         <div style={card}>
-          <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>Inventory value by category</div>
-          <CategoryPieFull/>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>Average eBay fees by sale price</div>
+          <div style={{fontSize:11,color:'#8b949e',marginBottom:12}}>Mean fee % per price band from your sales</div>
+          <FeeTierFull/>
         </div>
         <div style={card}>
           <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>Stock vs listed</div>
-          <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8,marginTop:8}}>
-            {[['In stock',stats.stockCount,'#8b949e'],['Listed',stats.listedCount,'#f0883e'],['Sold',stats.salesCount,'#e6edf3'],['This month',fmt(thisMonth.revenue,sym),'#58a6ff']].map(([l,v,c])=>(
+          <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8}}>
+            {[['In stock',stats.stockCount,'#8b949e'],['Listed',stats.listedCount,'#f0883e'],['Sold (all time)',stats.salesCount,'#e6edf3'],['This month revenue',fmt(thisMonth.revenue,sym),'#58a6ff']].map(([l,v,c])=>(
               <div key={l} style={{background:'#21262d',borderRadius:6,padding:'10px'}}>
                 <div style={{color:'#8b949e',fontSize:10,marginBottom:3}}>{l}</div>
                 <div style={{fontWeight:700,fontSize:18,color:c}}>{v}</div>
@@ -465,17 +459,26 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
         </div>
       </div>
 
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}}>
+      {/* Daily charts — 3 columns */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:14,marginBottom:14}}>
         <div style={card}>
-          <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>Daily revenue — last 30 days</div>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>Daily revenue</div>
+          <div style={{fontSize:11,color:'#8b949e',marginBottom:12}}>Gross eBay sale price — last 30 days</div>
           <DailySalesFull/>
         </div>
         <div style={card}>
-          <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>Daily listings — last 30 days</div>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>Copies sold per day</div>
+          <div style={{fontSize:11,color:'#8b949e',marginBottom:12}}>Items sold — last 30 days</div>
+          <DailyVolumeFull/>
+        </div>
+        <div style={card}>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>Daily listings</div>
+          <div style={{fontSize:11,color:'#8b949e',marginBottom:12}}>Items moved to Active Listings — last 30 days</div>
           <DailyListingsFull/>
         </div>
       </div>
 
+      {/* Tax year */}
       <div style={card}>
         <div style={{fontSize:13,fontWeight:600,marginBottom:8}}>UK tax year gross revenue</div>
         <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#8b949e',marginBottom:6}}>
