@@ -6,6 +6,7 @@ import { EXPENSE_TYPES, expenseTotals, expenseShort, normalizePurchases, sumExpe
 import { isListingDeadZone, bundlePostageSavings, splitPostageAcrossItems, POSTAGE_PER_ITEM_IF_ALONE } from './bundleUtils.js';
 import { moneyReceived, feesFromInputs, saleFees } from './saleUtils.js';
 import Dashboard from './Dashboard.jsx';
+import { EBAY_CATEGORIES, EBAY_CONDITIONS, buildEbayListingUrl } from './ebayData.js';
 
 // ── mobile detection ─────────────────────────────────────────────────────────
 const useIsMobile = () => {
@@ -34,7 +35,7 @@ const findDuplicate = (name,catId,items) => {
 
 const DEFAULTS = {
   businessName:'My eBay Store', currency:'£', baseFee:15,
-  postage:1.00, initialSpend:0, taxCountry:'UK',
+  postage:1.00, initialSpend:0, taxCountry:'UK', listingDescription:'',
 };
 const SORT_OPTS = [['price-desc','Price ↓'],['price-asc','Price ↑'],['name','Name A–Z']];
 
@@ -150,6 +151,11 @@ function SettingsModal({cfg,onChange,onSave,onClose,feeLabel,effectiveFeeRate,sa
         </div>
         <div style={S.field}><label style={S.fLbl}>Stock spend before using this app</label><input style={S.fInp} type="number" step="0.01" min="0" value={cfg.initialSpend||''} onChange={e=>f('initialSpend',e.target.value)} placeholder="0.00"/><div style={{fontSize:11,color:'#8b949e',marginTop:3}}>One-time entry — adds to your total spend.</div></div>
         <div style={S.field}><label style={S.fLbl}>Tax country</label><select style={{...S.fInp}} value={cfg.taxCountry||'UK'} onChange={e=>f('taxCountry',e.target.value)}><option value="UK">🇬🇧 United Kingdom</option><option value="Other">Other / International</option></select></div>
+        <div style={{...S.field,gridColumn:'1/-1'}}>
+          <label style={S.fLbl}>Standard listing description</label>
+          <textarea style={{...S.fInp,minHeight:100,resize:'vertical',lineHeight:1.5}} value={cfg.listingDescription||''} onChange={e=>f('listingDescription',e.target.value)} placeholder="e.g. Fast dispatch · Secure packaging · Combined postage available · Please check my other listings!"/>
+          <div style={{fontSize:11,color:'#6e7681',marginTop:3}}>Added to every eBay listing pre-fill. You can use it for dispatch times, postage info, feedback requests etc.</div>
+        </div>
       </div>
       <div style={S.mActs}><button style={S.mBtn} onClick={onClose}>Cancel</button><button style={S.mBtnP} onClick={onSave}>Save settings</button></div>
     </Modal>
@@ -212,7 +218,9 @@ export default function App(){
   const [addName,setAddName]   = useState('');
   const [addPrice,setAddPrice] = useState('');
   const [addQty,setAddQty]       = useState('1');
-  const [addBuyCost,setAddBuyCost] = useState('');
+  const [addBuyCost,setAddBuyCost]       = useState('');
+  const [addCondition,setAddCondition]     = useState('');
+  const [addEbayCategory,setAddEbayCategory] = useState('');
   const [dupPrompt,setDupPrompt] = useState(null);
 
   // Sell
@@ -380,17 +388,17 @@ export default function App(){
     const q=Math.max(1,parseInt(addQty,10)||1);
     const bc=parseFloat(addBuyCost)||0;
     const dup=findDuplicate(addName,curInvCat,items);
-    if(dup){ setDupPrompt({dup,name:addName.trim(),price:p,qty:q,catId:curInvCat,buyCost:bc}); return; }
-    doAddItem(addName.trim(),p,q,curInvCat,null,bc);
+    if(dup){ setDupPrompt({dup,name:addName.trim(),price:p,qty:q,catId:curInvCat,buyCost:bc,condition:addCondition,ebayCategory:addEbayCategory}); return; }
+    doAddItem(addName.trim(),p,q,curInvCat,null,bc,addCondition,addEbayCategory);
   };
 
-  const doAddItem=(name,price,qty,catId,mergeId,buyCost=0)=>{
+  const doAddItem=(name,price,qty,catId,mergeId,buyCost=0,condition='',ebayCategory='')=>{
     if(mergeId){
       setItems(p=>p.map(x=>x.id===mergeId?{...x,qty:iq(x)+qty}:x));
     }else{
-      setItems(p=>[{id:Date.now(),name,categoryId:catId,price,qty,buyCost:+buyCost.toFixed(2)||0,status:'stock',dateStr:todayEnGB()},...p]);
+      setItems(p=>[{id:Date.now(),name,categoryId:catId,price,qty,buyCost:+buyCost.toFixed(2)||0,condition,ebayCategory,status:'stock',dateStr:todayEnGB()},...p]);
     }
-    setAddName('');setAddPrice('');setAddQty('1');setAddBuyCost('');setDupPrompt(null);setShowAddItem(false);
+    setAddName('');setAddPrice('');setAddQty('1');setAddBuyCost('');setAddCondition('');setAddEbayCategory('');setDupPrompt(null);setShowAddItem(false);
   };
 
   const confirmSell=()=>{
@@ -644,12 +652,13 @@ export default function App(){
                       <div style={mName}>{it.name}</div>
                       <div style={{fontSize:20,fontWeight:700,color:'#f0883e',flexShrink:0}}>{fmt(it.price)}</div>
                     </div>
-                    <div style={{fontSize:11,color:'#8b949e',marginBottom:4}}>{it.dateStr}{it.buyCost>0?' · cost: '+fmt(it.buyCost):''}</div>
+                    <div style={{fontSize:11,color:'#8b949e',marginBottom:4}}>{it.dateStr}{it.condition?' · '+it.condition:''}{it.buyCost>0?' · cost: '+fmt(it.buyCost):''}</div>
                     <div style={{fontSize:11,marginBottom:8}}><span style={{color:'#8b949e'}}>Profit est: </span><span style={{color:(it.price-calcFees(it.price)-(it.buyCost||0))>=0?'#3fb950':'#f85149',fontWeight:600}}>{fmt(it.price-calcFees(it.price)-(it.buyCost||0))}</span></div>
                     <div style={mFoot}>
                       <QtyCell value={iq(it)} onChange={n=>setItems(p=>p.map(x=>x.id===it.id?{...x,qty:n}:x))}/>
                       <div style={S.acts}>
                         <IBtn href={ebayUrl(it.name)} title="Search eBay sold">🔍</IBtn>
+                        <IBtn onClick={()=>{window.open(buildEbayListingUrl(it,cfg),'_blank');setItems(p=>p.map(x=>x.id===it.id?{...x,status:'listed',listedAt:todayEnGB()}:x));}} title="List on eBay" col="#f0883e">🏷</IBtn>
                         <IBtn onClick={()=>setItems(p=>p.map(x=>x.id===it.id?{...x,status:'listed',listedAt:todayEnGB()}:x))} title="Move to listings" col="#58a6ff">→</IBtn>
                         <IBtn onClick={()=>{if(confirm('Remove this item?'))setItems(p=>p.filter(x=>x.id!==it.id));}} title="Remove" col="#f85149">✕</IBtn>
                       </div>
@@ -672,15 +681,16 @@ export default function App(){
                   {filteredItems.length===0&&<tr><td colSpan={6} style={S.empty}>No items — click ＋ Add item to get started</td></tr>}
                   {filteredItems.map((it,i)=>(
                     <tr key={it.id} style={{background:i%2===0?'transparent':'#161b22'}}>
-                      <td style={S.td}><span style={{display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={it.name}>{it.name}</span></td>
+                      <td style={S.td}><span style={{display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={it.name}>{it.name}</span>{it.condition&&<span style={{fontSize:10,color:'#8b949e',display:'block'}}>{it.condition}</span>}</td>
                       <td style={S.td}><QtyCell value={iq(it)} onChange={n=>setItems(p=>p.map(x=>x.id===it.id?{...x,qty:n}:x))}/></td>
                       <td style={{...S.td,color:'#8b949e',fontSize:11}}>{it.dateStr}</td>
                       <td style={{...S.td,textAlign:'right',color:'#f0883e',fontWeight:600}}>{fmt(it.price)}</td>
                       <td style={{...S.td,textAlign:'right',color:it.buyCost>0?'#f85149':'#6e7681',fontSize:11}}>{it.buyCost>0?fmt(it.buyCost):'—'}</td>
                       <td style={{...S.td,textAlign:'right',fontSize:11}}>{(()=>{const p=it.price-calcFees(it.price)-(it.buyCost||0);return <span style={{color:p>=0?'#3fb950':'#f85149',fontWeight:p>0?600:400}}>{fmt(p)}</span>;})()}</td>
                       <td style={S.td}><div style={S.acts}>
-                        <IBtn href={ebayUrl(it.name)} title="Search eBay sold">🔍</IBtn>
-                        <IBtn onClick={()=>setItems(p=>p.map(x=>x.id===it.id?{...x,status:'listed',listedAt:todayEnGB()}:x))} title="Move to Active Listings" col="#58a6ff">→</IBtn>
+                        <IBtn href={ebayUrl(it.name)} title="Search eBay sold prices">🔍</IBtn>
+                        <IBtn onClick={()=>{window.open(buildEbayListingUrl(it,cfg),'_blank');setItems(p=>p.map(x=>x.id===it.id?{...x,status:'listed',listedAt:todayEnGB()}:x));}} title="List on eBay — opens pre-filled listing and moves to Active Listings" col="#f0883e">🏷</IBtn>
+                        <IBtn onClick={()=>setItems(p=>p.map(x=>x.id===it.id?{...x,status:'listed',listedAt:todayEnGB()}:x))} title="Move to Active Listings without opening eBay" col="#58a6ff">→</IBtn>
                         <IBtn onClick={()=>{if(confirm('Remove this item?'))setItems(p=>p.filter(x=>x.id!==it.id));}} title="Remove" col="#f85149">✕</IBtn>
                       </div></td>
                     </tr>
@@ -742,7 +752,7 @@ export default function App(){
                                 <QtyCell value={iq(it)} onChange={n=>setItems(p=>p.map(x=>x.id===it.id?{...x,qty:n}:x))}/>
                               </div>
                               <div style={S.acts}>
-                                <IBtn href={ebayUrl(it.name)} title="eBay sold">🔍</IBtn>
+                                <IBtn href={ebayUrl(it.name)} title="Search eBay sold">🔍</IBtn>
                                 <IBtn onClick={()=>{setSellItem(it);setSoldP(it.price.toFixed(2));setMoneyInP('');setPostageP('');setSellQtyIn('1');}} title="Log sale" col="#3fb950">£</IBtn>
                                 <IBtn onClick={()=>setItems(p=>p.map(x=>x.id===it.id?{...x,status:'stock'}:x))} title="Back to inventory" col="#8b949e">←</IBtn>
                               </div>
@@ -767,7 +777,7 @@ export default function App(){
                           {filteredListed.map((it,i)=>(
                             <tr key={it.id} style={{background:isSel(curLstCat,it.id)?'#1c2f4a':i%2===0?'transparent':'#161b22'}}>
                               <td style={{...S.td,textAlign:'center'}}><input type="checkbox" style={S.chk} checked={isSel(curLstCat,it.id)} onChange={()=>toggleSel(curLstCat,it)}/></td>
-                              <td style={S.td}><span style={{display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={it.name}>{it.name}</span></td>
+                              <td style={S.td}><span style={{display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={it.name}>{it.name}</span>{it.condition&&<span style={{fontSize:10,color:'#8b949e',display:'block'}}>{it.condition}</span>}</td>
                               <td style={S.td}><QtyCell value={iq(it)} onChange={n=>setItems(p=>p.map(x=>x.id===it.id?{...x,qty:n}:x))}/></td>
                               <td style={{...S.td,color:'#8b949e',fontSize:11}}>{it.listedAt||it.dateStr||'—'}</td>
                               <td style={{...S.td,textAlign:'right',color:'#f0883e',fontWeight:600}}>{fmt(it.price)}</td>
@@ -995,6 +1005,29 @@ export default function App(){
           <div style={S.field}><label style={S.fLbl}>How many copies?</label><input style={S.fInp} type="number" min="1" step="1" value={addQty} onChange={e=>setAddQty(e.target.value)} placeholder="1"/></div>
           <div style={S.field}><label style={S.fLbl}>Price ({sym}){parseInt(addQty,10)>1?' — per item':''}</label><input style={S.fInp} type="number" step="0.01" min="0" value={addPrice} onChange={e=>setAddPrice(e.target.value)} placeholder="0.00"/></div>
           <div style={S.field}><label style={S.fLbl}>Item cost ({sym}) — optional</label><input style={S.fInp} type="number" step="0.01" min="0" value={addBuyCost} onChange={e=>setAddBuyCost(e.target.value)} placeholder="What did you pay for this?"/><div style={{fontSize:11,color:'#6e7681',marginTop:3}}>Shown alongside each item to track per-item profit. Not added to overall business costs.</div></div>
+          <div style={S.field}>
+            <label style={S.fLbl}>Condition — optional</label>
+            <select style={S.fInp} value={addCondition} onChange={e=>setAddCondition(e.target.value)}>
+              <option value="">Select condition…</option>
+              {EBAY_CONDITIONS.map(g=>(
+                <optgroup key={g.group} label={g.group}>
+                  {g.items.map(c=><option key={c} value={c}>{c}</option>)}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+          <div style={S.field}>
+            <label style={S.fLbl}>eBay category — optional</label>
+            <select style={S.fInp} value={addEbayCategory} onChange={e=>setAddEbayCategory(e.target.value)}>
+              <option value="">Select eBay category…</option>
+              {EBAY_CATEGORIES.map(g=>(
+                <optgroup key={g.group} label={g.group}>
+                  {g.items.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                </optgroup>
+              ))}
+            </select>
+            <div style={{fontSize:11,color:'#6e7681',marginTop:3}}>Used to pre-fill the category when listing on eBay.</div>
+          </div>
           <div style={S.mActs}><button style={S.mBtn} onClick={()=>setShowAddItem(false)}>Cancel</button><button style={S.mBtnP} onClick={tryAddItem}>Add item</button></div>
         </Modal>;
       })()}
@@ -1007,7 +1040,7 @@ export default function App(){
         </p>
         <div style={S.mActs}>
           <button style={S.mBtn} onClick={()=>setDupPrompt(null)}>Cancel</button>
-          <button style={S.mBtn} onClick={()=>doAddItem(dupPrompt.name,dupPrompt.price,dupPrompt.qty,dupPrompt.catId,null,dupPrompt.buyCost||0)}>Separate entry</button>
+          <button style={S.mBtn} onClick={()=>doAddItem(dupPrompt.name,dupPrompt.price,dupPrompt.qty,dupPrompt.catId,null,dupPrompt.buyCost||0,dupPrompt.condition||'',dupPrompt.ebayCategory||'')}>Separate entry</button>
           <button style={S.mBtnP} onClick={()=>doAddItem(dupPrompt.name,dupPrompt.price,dupPrompt.qty,dupPrompt.catId,dupPrompt.dup.id,dupPrompt.buyCost||0)}>Add to existing (+{dupPrompt.qty})</button>
         </div>
       </Modal>}
