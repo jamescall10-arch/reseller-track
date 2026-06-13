@@ -4,6 +4,7 @@ export const EXPENSE_TYPES = [
   { id:'stock',   label:'Stock & goods',             short:'Stock',    desc:'Items and bundles you buy to resell' },
   { id:'postage', label:'Postage & shipping equip',  short:'Post',     desc:'Scales, label printer, postage meter…' },
   { id:'supplies',label:'Packing & materials',       short:'Supplies', desc:'Bags, tape, bubble wrap, packaging…' },
+  { id:'refunds', label:'Refunds',                    short:'Refunds',  desc:'eBay refunds — item not received cases etc.' },
 ];
 
 export const expenseType  = p => p?.type||'stock';
@@ -26,6 +27,7 @@ export const expenseTotals = purchases => ({
   stock:    sumExpenses(purchases,'stock'),
   postage:  sumExpenses(purchases,'postage'),
   supplies: sumExpenses(purchases,'supplies'),
+  refunds:  sumExpenses(purchases,'refunds'),
   all:      sumExpenses(purchases,null),
 });
 
