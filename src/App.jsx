@@ -211,7 +211,8 @@ export default function App(){
   const [showAddItem,setShowAddItem] = useState(false);
   const [addName,setAddName]   = useState('');
   const [addPrice,setAddPrice] = useState('');
-  const [addQty,setAddQty]     = useState('1');
+  const [addQty,setAddQty]       = useState('1');
+  const [addBuyCost,setAddBuyCost] = useState('');
   const [dupPrompt,setDupPrompt] = useState(null);
 
   // Sell
@@ -377,18 +378,19 @@ export default function App(){
     if(!addName.trim()){alert('Enter an item name');return;}
     const p=parseFloat(addPrice)||0; if(p<=0){alert('Enter a price');return;}
     const q=Math.max(1,parseInt(addQty,10)||1);
+    const bc=parseFloat(addBuyCost)||0;
     const dup=findDuplicate(addName,curInvCat,items);
-    if(dup){ setDupPrompt({dup,name:addName.trim(),price:p,qty:q,catId:curInvCat}); return; }
-    doAddItem(addName.trim(),p,q,curInvCat,null);
+    if(dup){ setDupPrompt({dup,name:addName.trim(),price:p,qty:q,catId:curInvCat,buyCost:bc}); return; }
+    doAddItem(addName.trim(),p,q,curInvCat,null,bc);
   };
 
-  const doAddItem=(name,price,qty,catId,mergeId)=>{
+  const doAddItem=(name,price,qty,catId,mergeId,buyCost=0)=>{
     if(mergeId){
       setItems(p=>p.map(x=>x.id===mergeId?{...x,qty:iq(x)+qty}:x));
     }else{
-      setItems(p=>[{id:Date.now(),name,categoryId:catId,price,qty,buyCost:0,status:'stock',dateStr:todayEnGB()},  ...p]);
+      setItems(p=>[{id:Date.now(),name,categoryId:catId,price,qty,buyCost:+buyCost.toFixed(2)||0,status:'stock',dateStr:todayEnGB()},...p]);
     }
-    setAddName('');setAddPrice('');setAddQty('1');setDupPrompt(null);setShowAddItem(false);
+    setAddName('');setAddPrice('');setAddQty('1');setAddBuyCost('');setDupPrompt(null);setShowAddItem(false);
   };
 
   const confirmSell=()=>{
@@ -400,7 +402,8 @@ export default function App(){
       id:Date.now(),itemId:it.id,itemName:it.name,categoryId:it.categoryId,
       listedPrice:it.price,soldPrice:spNum,ebayFees:ebayFeesCalc,
       moneyIn:miNum,postage:poNum,profit:sellProfit,qty:n,date:todayEnGB(),
-      restore:{itemId:it.id,name:it.name,price:it.price,qty:n,status:'listed',dateStr:it.dateStr,categoryId:it.categoryId},
+      buyCost:+(it.buyCost||0).toFixed(2),
+      restore:{itemId:it.id,name:it.name,price:it.price,qty:n,status:'listed',dateStr:it.dateStr,categoryId:it.categoryId,buyCost:it.buyCost||0},
     };
     setSales(p=>[sale,...p]);
     setItems(p=>p.map(x=>x.id===it.id?applyAfterSale(x,n):x));
@@ -459,7 +462,8 @@ export default function App(){
       moneyIn:line.mi,postage:postShares[i]||0,profit:+(line.mi-(postShares[i]||0)).toFixed(2),
       qty:line.n,date,bundleId,bundleItemCount:lines.length,
       bundlePostageTotal:totalPost,bundleSavings:savings,
-      restore:{itemId:line.item.id,name:line.item.name,price:line.item.price,qty:line.n,status:'listed',dateStr:line.item.dateStr,categoryId:line.catId},
+      buyCost:+(line.item.buyCost||0).toFixed(2),
+      restore:{itemId:line.item.id,name:line.item.name,price:line.item.price,qty:line.n,status:'listed',dateStr:line.item.dateStr,categoryId:line.catId,buyCost:line.item.buyCost||0},
     }));
     setSales(p=>[...newSales,...p]);
     lines.forEach(({item,n})=>setItems(p=>p.map(x=>x.id===item.id?applyAfterSale(x,n):x)));
@@ -640,7 +644,8 @@ export default function App(){
                       <div style={mName}>{it.name}</div>
                       <div style={{fontSize:20,fontWeight:700,color:'#f0883e',flexShrink:0}}>{fmt(it.price)}</div>
                     </div>
-                    <div style={{fontSize:11,color:'#8b949e',marginBottom:8}}>{it.dateStr} · net ~{fmt(it.price-calcFees(it.price))}</div>
+                    <div style={{fontSize:11,color:'#8b949e',marginBottom:4}}>{it.dateStr}{it.buyCost>0?' · cost: '+fmt(it.buyCost):''}</div>
+                    <div style={{fontSize:11,marginBottom:8}}><span style={{color:'#8b949e'}}>Profit est: </span><span style={{color:(it.price-calcFees(it.price)-(it.buyCost||0))>=0?'#3fb950':'#f85149',fontWeight:600}}>{fmt(it.price-calcFees(it.price)-(it.buyCost||0))}</span></div>
                     <div style={mFoot}>
                       <QtyCell value={iq(it)} onChange={n=>setItems(p=>p.map(x=>x.id===it.id?{...x,qty:n}:x))}/>
                       <div style={S.acts}>
@@ -655,12 +660,13 @@ export default function App(){
             ) : (
               <div style={S.tWrap}><table style={S.tbl}>
                 <thead><tr>
-                  <th style={{...S.th,width:'38%'}}>Item</th>
-                  <th style={{...S.th,width:'8%',textAlign:'center'}}>Qty</th>
-                  <th style={{...S.th,width:'11%'}}>Added</th>
-                  <th style={{...S.th,width:'11%',textAlign:'right'}}>Value</th>
-                  <th style={{...S.th,width:'12%',textAlign:'right'}}>Net (est. {(effectiveFeeRate?effectiveFeeRate*100:(cfg.baseFee||15)).toFixed(0)}%)</th>
-                  <th style={{...S.th,width:'20%'}}>Actions</th>
+                  <th style={{...S.th,width:'30%'}}>Item</th>
+                  <th style={{...S.th,width:'7%',textAlign:'center'}}>Qty</th>
+                  <th style={{...S.th,width:'9%'}}>Added</th>
+                  <th style={{...S.th,width:'9%',textAlign:'right'}}>Value</th>
+                  <th style={{...S.th,width:'9%',textAlign:'right'}}>Item cost</th>
+                  <th style={{...S.th,width:'11%',textAlign:'right'}}>Profit est.</th>
+                  <th style={{...S.th,width:'15%'}}>Actions</th>
                 </tr></thead>
                 <tbody>
                   {filteredItems.length===0&&<tr><td colSpan={6} style={S.empty}>No items — click ＋ Add item to get started</td></tr>}
@@ -670,7 +676,8 @@ export default function App(){
                       <td style={S.td}><QtyCell value={iq(it)} onChange={n=>setItems(p=>p.map(x=>x.id===it.id?{...x,qty:n}:x))}/></td>
                       <td style={{...S.td,color:'#8b949e',fontSize:11}}>{it.dateStr}</td>
                       <td style={{...S.td,textAlign:'right',color:'#f0883e',fontWeight:600}}>{fmt(it.price)}</td>
-                      <td style={{...S.td,textAlign:'right',color:'#8b949e',fontSize:11}}>{fmt(it.price-calcFees(it.price))}</td>
+                      <td style={{...S.td,textAlign:'right',color:it.buyCost>0?'#f85149':'#6e7681',fontSize:11}}>{it.buyCost>0?fmt(it.buyCost):'—'}</td>
+                      <td style={{...S.td,textAlign:'right',fontSize:11}}>{(()=>{const p=it.price-calcFees(it.price)-(it.buyCost||0);return <span style={{color:p>=0?'#3fb950':'#f85149',fontWeight:p>0?600:400}}>{fmt(p)}</span>;})()}</td>
                       <td style={S.td}><div style={S.acts}>
                         <IBtn href={ebayUrl(it.name)} title="Search eBay sold">🔍</IBtn>
                         <IBtn onClick={()=>setItems(p=>p.map(x=>x.id===it.id?{...x,status:'listed',listedAt:todayEnGB()}:x))} title="Move to Active Listings" col="#58a6ff">→</IBtn>
@@ -724,7 +731,8 @@ export default function App(){
                             <div style={mRow}>
                               <div style={{flex:1,paddingRight:8}}>
                                 <div style={{fontWeight:600,fontSize:14,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{it.name}</div>
-                                <div style={mSub}>Listed {it.listedAt||it.dateStr||'—'} · net ~{fmt(it.price-calcFees(it.price))}</div>
+                                <div style={mSub}>Listed {it.listedAt||it.dateStr||'—'}{it.buyCost>0?' · cost '+fmt(it.buyCost):''}</div>
+                                <div style={{fontSize:11,marginTop:2}}><span style={{color:'#8b949e'}}>Profit est: </span><span style={{color:(it.price-calcFees(it.price)-(it.buyCost||0))>=0?'#3fb950':'#f85149',fontWeight:600}}>{fmt(it.price-calcFees(it.price)-(it.buyCost||0))}</span></div>
                               </div>
                               <div style={{fontSize:20,fontWeight:700,color:'#f0883e',flexShrink:0}}>{fmt(it.price)}</div>
                             </div>
@@ -747,12 +755,13 @@ export default function App(){
                       <table style={S.tbl}>
                         <thead><tr>
                           <th style={{...S.th,width:'4%'}}></th>
-                          <th style={{...S.th,width:'32%'}}>Item</th>
-                          <th style={{...S.th,width:'8%',textAlign:'center'}}>Qty</th>
-                          <th style={{...S.th,width:'11%'}}>Listed</th>
-                          <th style={{...S.th,width:'11%',textAlign:'right'}}>Price</th>
-                          <th style={{...S.th,width:'11%',textAlign:'right'}}>Net (est.)</th>
-                          <th style={{...S.th,width:'23%'}}>Actions</th>
+                          <th style={{...S.th,width:'26%'}}>Item</th>
+                          <th style={{...S.th,width:'7%',textAlign:'center'}}>Qty</th>
+                          <th style={{...S.th,width:'9%'}}>Listed</th>
+                          <th style={{...S.th,width:'9%',textAlign:'right'}}>Price</th>
+                          <th style={{...S.th,width:'9%',textAlign:'right'}}>Item cost</th>
+                          <th style={{...S.th,width:'11%',textAlign:'right'}}>Profit est.</th>
+                          <th style={{...S.th,width:'15%'}}>Actions</th>
                         </tr></thead>
                         <tbody>
                           {filteredListed.map((it,i)=>(
@@ -762,7 +771,8 @@ export default function App(){
                               <td style={S.td}><QtyCell value={iq(it)} onChange={n=>setItems(p=>p.map(x=>x.id===it.id?{...x,qty:n}:x))}/></td>
                               <td style={{...S.td,color:'#8b949e',fontSize:11}}>{it.listedAt||it.dateStr||'—'}</td>
                               <td style={{...S.td,textAlign:'right',color:'#f0883e',fontWeight:600}}>{fmt(it.price)}</td>
-                              <td style={{...S.td,textAlign:'right',color:'#8b949e',fontSize:11}}>{fmt(it.price-calcFees(it.price))}</td>
+                              <td style={{...S.td,textAlign:'right',color:it.buyCost>0?'#f85149':'#6e7681',fontSize:11}}>{it.buyCost>0?fmt(it.buyCost):'—'}</td>
+                              <td style={{...S.td,textAlign:'right',fontSize:11}}>{(()=>{const p=it.price-calcFees(it.price)-(it.buyCost||0);return <span style={{color:p>=0?'#3fb950':'#f85149',fontWeight:p>0?600:400}}>{fmt(p)}</span>;})()}</td>
                               <td style={S.td}><div style={S.acts}>
                                 <IBtn href={ebayUrl(it.name)} title="eBay sold listings">🔍</IBtn>
                                 <IBtn onClick={()=>{setSellItem(it);setSoldP(it.price.toFixed(2));setMoneyInP('');setPostageP('');setSellQtyIn('1');}} title="Log sale" col="#3fb950">£</IBtn>
@@ -876,11 +886,10 @@ export default function App(){
                     <div style={mRow}>
                       <div style={{flex:1,paddingRight:8}}>
                         <div style={{fontWeight:600,fontSize:13,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{sa.itemName}{sa.refunded?' (refunded)':''}{sa.bundleId?' 📦':''}</div>
-                        <div style={mSub}>{sa.date} · qty {sa.qty||1}</div>
+                        <div style={mSub}>{sa.date} · qty {sa.qty||1}{sa.buyCost>0?' · cost '+fmt(sa.buyCost):''}</div>
                       </div>
                       <div style={{textAlign:'right',flexShrink:0}}>
-                        <div style={{fontSize:16,fontWeight:700,color:sa.profit>=0?'#3fb950':'#f85149'}}>{fmt(sa.profit)}</div>
-                        <div style={{fontSize:11,color:'#8b949e'}}>in: {fmt(moneyReceived(sa))}</div>
+                        {(()=>{ const tp=sa.profit-(sa.buyCost||0)*(sa.qty||1); return <><div style={{fontSize:16,fontWeight:700,color:tp>=0?'#3fb950':'#f85149'}}>{fmt(tp)}</div><div style={{fontSize:11,color:'#8b949e'}}>in: {fmt(moneyReceived(sa))}</div></>; })()}
                       </div>
                     </div>
                     <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#8b949e'}}>
@@ -898,14 +907,15 @@ export default function App(){
             <div style={S.tWrap}>
               <table style={S.tbl}>
                 <thead><tr>
-                  <th style={{...S.th,width:'27%'}}>Item</th>
-                  <th style={{...S.th,width:'10%'}}>Date</th>
-                  <th style={{...S.th,width:'8%',textAlign:'center'}}>Qty</th>
-                  <th style={{...S.th,width:'11%',textAlign:'right'}}>Sale price</th>
-                  <th style={{...S.th,width:'11%',textAlign:'right'}}>Money in</th>
-                  <th style={{...S.th,width:'10%',textAlign:'right'}}>Postage</th>
-                  <th style={{...S.th,width:'10%',textAlign:'right'}}>Profit</th>
-                  <th style={{...S.th,width:'13%'}}>Actions</th>
+                  <th style={{...S.th,width:'22%'}}>Item</th>
+                  <th style={{...S.th,width:'9%'}}>Date</th>
+                  <th style={{...S.th,width:'5%',textAlign:'center'}}>Qty</th>
+                  <th style={{...S.th,width:'10%',textAlign:'right'}}>Sale price</th>
+                  <th style={{...S.th,width:'9%',textAlign:'right'}}>Money in</th>
+                  <th style={{...S.th,width:'8%',textAlign:'right'}}>Postage</th>
+                  <th style={{...S.th,width:'9%',textAlign:'right'}}>Item cost</th>
+                  <th style={{...S.th,width:'9%',textAlign:'right'}}>True profit</th>
+                  <th style={{...S.th,width:'11%'}}>Actions</th>
                 </tr></thead>
                 <tbody>
                   {sales.map((sa,i)=>(
@@ -916,7 +926,8 @@ export default function App(){
                       <td style={{...S.td,textAlign:'right',color:'#8b949e'}}>{fmt(sa.soldPrice)}</td>
                       <td style={{...S.td,textAlign:'right',color:'#f0883e',fontWeight:600}}>{fmt(moneyReceived(sa))}</td>
                       <td style={{...S.td,textAlign:'right',color:sa.postage>0?'#f85149':'#8b949e',fontSize:11}}>{sa.postage>0?'−'+fmt(sa.postage):'—'}</td>
-                      <td style={{...S.td,textAlign:'right',fontWeight:700,color:sa.profit>=0?'#3fb950':'#f85149'}}>{fmt(sa.profit)}</td>
+                      <td style={{...S.td,textAlign:'right',color:sa.buyCost>0?'#f85149':'#6e7681',fontSize:11}}>{sa.buyCost>0?'−'+fmt(sa.buyCost*(sa.qty||1)):'—'}</td>
+                      <td style={{...S.td,textAlign:'right',fontWeight:700}}>{(()=>{const tp=sa.profit-(sa.buyCost||0)*(sa.qty||1);return <span style={{color:tp>=0?'#3fb950':'#f85149'}}>{fmt(tp)}</span>;})()}</td>
                       <td style={S.td}><div style={S.acts}>
                         {!sa.refunded&&<IBtn onClick={()=>refundSale(sa)} title="Refund & restore to inventory" col="#d29922">↩</IBtn>}
                         <IBtn onClick={()=>{if(confirm('Delete this sale record?'))setSales(p=>p.filter(x=>x.id!==sa.id));}} title="Delete" col="#f85149">✕</IBtn>
@@ -983,6 +994,7 @@ export default function App(){
           <div style={S.field}><label style={S.fLbl}>Item name</label><input style={S.fInp} type="text" value={addName} onChange={e=>setAddName(e.target.value)} placeholder="Item name" autoFocus/></div>
           <div style={S.field}><label style={S.fLbl}>How many copies?</label><input style={S.fInp} type="number" min="1" step="1" value={addQty} onChange={e=>setAddQty(e.target.value)} placeholder="1"/></div>
           <div style={S.field}><label style={S.fLbl}>Price ({sym}){parseInt(addQty,10)>1?' — per item':''}</label><input style={S.fInp} type="number" step="0.01" min="0" value={addPrice} onChange={e=>setAddPrice(e.target.value)} placeholder="0.00"/></div>
+          <div style={S.field}><label style={S.fLbl}>Item cost ({sym}) — optional</label><input style={S.fInp} type="number" step="0.01" min="0" value={addBuyCost} onChange={e=>setAddBuyCost(e.target.value)} placeholder="What did you pay for this?"/><div style={{fontSize:11,color:'#6e7681',marginTop:3}}>Shown alongside each item to track per-item profit. Not added to overall business costs.</div></div>
           <div style={S.mActs}><button style={S.mBtn} onClick={()=>setShowAddItem(false)}>Cancel</button><button style={S.mBtnP} onClick={tryAddItem}>Add item</button></div>
         </Modal>;
       })()}
@@ -995,8 +1007,8 @@ export default function App(){
         </p>
         <div style={S.mActs}>
           <button style={S.mBtn} onClick={()=>setDupPrompt(null)}>Cancel</button>
-          <button style={S.mBtn} onClick={()=>doAddItem(dupPrompt.name,dupPrompt.price,dupPrompt.qty,dupPrompt.catId,null)}>Separate entry</button>
-          <button style={S.mBtnP} onClick={()=>doAddItem(dupPrompt.name,dupPrompt.price,dupPrompt.qty,dupPrompt.catId,dupPrompt.dup.id)}>Add to existing (+{dupPrompt.qty})</button>
+          <button style={S.mBtn} onClick={()=>doAddItem(dupPrompt.name,dupPrompt.price,dupPrompt.qty,dupPrompt.catId,null,dupPrompt.buyCost||0)}>Separate entry</button>
+          <button style={S.mBtnP} onClick={()=>doAddItem(dupPrompt.name,dupPrompt.price,dupPrompt.qty,dupPrompt.catId,dupPrompt.dup.id,dupPrompt.buyCost||0)}>Add to existing (+{dupPrompt.qty})</button>
         </div>
       </Modal>}
 
@@ -1012,7 +1024,8 @@ export default function App(){
           {spNum>0&&miNum>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'3px 0',color:'#8b949e'}}><span>eBay fees (sale − received)</span><span style={{color:'#f85149'}}>−{fmt(ebayFeesCalc)}</span></div>}
           {miNum>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'3px 0',fontWeight:600,color:'#8b949e'}}><span>Money received</span><span style={{color:'#f0883e'}}>{fmt(miNum)}</span></div>}
           {poNum>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'3px 0',color:'#8b949e'}}><span>Postage paid</span><span style={{color:'#f85149'}}>−{fmt(poNum)}</span></div>}
-          {miNum>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'6px 0 3px',borderTop:'1px solid #30363d',marginTop:4,fontWeight:700,fontSize:13}}><span>Profit</span><span style={{color:sellProfit>=0?'#3fb950':'#f85149'}}>{fmt(sellProfit)}</span></div>}
+          {(sellItem?.buyCost>0)&&<div style={{display:'flex',justifyContent:'space-between',padding:'3px 0',color:'#8b949e'}}><span>Item cost (×{sellQtyNum})</span><span style={{color:'#f85149'}}>−{fmt((sellItem.buyCost||0)*sellQtyNum)}</span></div>}
+          {miNum>0&&(()=>{const tp=sellProfit-(sellItem?.buyCost||0)*sellQtyNum;return <div style={{display:'flex',justifyContent:'space-between',padding:'6px 0 3px',borderTop:'1px solid #30363d',marginTop:4,fontWeight:700,fontSize:13}}><span>True profit</span><span style={{color:tp>=0?'#3fb950':'#f85149'}}>{fmt(tp)}</span></div>;})()}
         </div>}
         <div style={S.mActs}><button style={S.mBtn} onClick={()=>setSellItem(null)}>Cancel</button><button style={S.mBtnP} onClick={confirmSell}>Log sale</button></div>
       </Modal>}
