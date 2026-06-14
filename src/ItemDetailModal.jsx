@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import PhotoUpload from './PhotoUpload.jsx';
 import { EBAY_CATEGORIES, EBAY_CONDITIONS, SHIPPING_SERVICES, getDefaultItemSpecifics } from './ebayData.js';
 import { isListingDeadZone } from './bundleUtils.js';
@@ -65,6 +65,13 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
     } catch(e) { console.error('category-specifics error:', e); }
     finally { setLoadingSpecifics(false); }
   };
+
+  // Auto-fetch required fields from eBay when modal opens with a category set
+  useEffect(() => {
+    if (form.ebayCategory && userId && ebayConnected) {
+      fetchCategorySpecifics(form.ebayCategory);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [showPreview,     setShowPreview]     = useState(false);
   const [showPublish,     setShowPublish]      = useState(false);
@@ -279,7 +286,12 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
             {itemSpecifics.length===0&&(
               <div style={{fontSize:11,color:'#6e7681',padding:'6px 0'}}>No item specifics yet. Some categories require these — e.g. Pokémon cards need Sport: Non-Sport Trading Cards</div>
             )}
-            {loadingSpecifics&&<div style={{fontSize:11,color:'#8b949e',padding:'4px 0'}}>Loading required fields from eBay...</div>}
+            <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:6}}>
+              {loadingSpecifics
+                ? <div style={{fontSize:11,color:'#8b949e'}}>⏳ Loading required fields from eBay…</div>
+                : form.ebayCategory&&ebayConnected&&<button type="button" style={S.btnSm} onClick={()=>fetchCategorySpecifics(form.ebayCategory)}>↻ Reload required fields from eBay</button>
+              }
+            </div>
             {itemSpecifics.map((s,i)=>{
               const spec = categorySpecifics?.find(cs=>cs.name.toLowerCase()===s.name.toLowerCase());
               const hasValues = spec?.values?.length>0;
