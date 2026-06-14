@@ -60,7 +60,7 @@ const S = {
   badge:   (color) => ({ display:'inline-block',background:`${color}15`,color,border:`1px solid ${color}40`,borderRadius:20,padding:'2px 10px',fontSize:11,fontWeight:600,flexShrink:0 }),
 };
 
-export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees, ebayConnected, userId, returnPolicy, fulfillmentPolicyId, paymentPolicyId, returnPolicyId, onSave, onClose, todayEnGB }){
+export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees, ebayConnected, userId, returnPolicy, fulfillmentPolicyId, paymentPolicyId, returnPolicyId, fulfillmentPolicies=[], onSave, onClose, todayEnGB }){
   const [form, setForm] = useState({
     name:         item.name         || '',
     price:        String(item.price || ''),
@@ -161,6 +161,7 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
   const [shippingService, setShippingService]  = useState(item.shippingService || (SHIPPING_SERVICES.find(s=>s.default)?.id || SHIPPING_SERVICES[0].id));
   const [postageCost,     setPostageCost]      = useState(String(cfg?.postage || '1.00'));
   const [sellerPostage,   setSellerPostage]    = useState(String(item.sellerPostageCost || cfg?.postage || '1.00'));
+  const [itemFulfilmentId, setItemFulfilmentId] = useState(item.fulfillmentPolicyId || fulfillmentPolicyId || '');
   const [conditionDesc,   setConditionDesc]    = useState(item.conditionDescription || '');
   const [postalCode,      setPostalCode]       = useState(item.postalCode || cfg?.postalCode || '');
   const [publishing,      setPublishing]       = useState(false);
@@ -266,7 +267,8 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
           ebayListingUrl: data.listingUrl,
           status:           'listed',
           listedAt:         todayEnGB ? todayEnGB() : new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}),
-          ebaySku:          data.sku,
+          ebaySku:            data.sku,
+          fulfillmentPolicyId: itemFulfilmentId || fulfillmentPolicyId,
           ebayOfferId:      data.offerId,
           sellerPostageCost: parseFloat(sellerPostage)||0,
         }, true);
@@ -491,17 +493,27 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
                   </div>
                 </div>
 
-                {/* Seller postage cost */}
+                {/* Postage policy + seller cost */}
                 <div style={S.row2}>
+                  <div style={S.field}>
+                    <label style={S.lbl}>Postage policy for this listing</label>
+                    {fulfillmentPolicies.length > 0
+                      ? <select style={S.inp} value={itemFulfilmentId} onChange={e=>setItemFulfilmentId(e.target.value)}>
+                          <option value="">Use default ({fulfillmentPolicies.find(p=>p.fulfillmentPolicyId===fulfillmentPolicyId)?.name||'none set'})</option>
+                          {fulfillmentPolicies.map(p=><option key={p.fulfillmentPolicyId} value={p.fulfillmentPolicyId}>{p.name}</option>)}
+                        </select>
+                      : <div style={{fontSize:11,color:'#6e7681'}}>Set up postage policies in My Account → eBay Setup first</div>
+                    }
+                  </div>
                   <div style={S.field}>
                     <label style={S.lbl}>Your actual postage cost ({sym})</label>
                     <input style={S.inp} type="number" step="0.01" min="0" value={sellerPostage} onChange={e=>setSellerPostage(e.target.value)} placeholder="e.g. 0.91"/>
-                    <div style={{fontSize:10,color:'#6e7681',marginTop:2}}>What YOU pay to post it — even if buyer gets free postage. Used to calculate your true profit.</div>
+                    <div style={{fontSize:10,color:'#6e7681',marginTop:2}}>What YOU pay — even if buyer gets free postage</div>
                   </div>
-                  <div style={S.field}>
-                    <label style={S.lbl}>Condition description (optional)</label>
-                    <input style={S.inp} value={conditionDesc} onChange={e=>setConditionDesc(e.target.value)} placeholder="e.g. Light scratch on corner"/>
-                  </div>
+                </div>
+                <div style={S.field}>
+                  <label style={S.lbl}>Condition description (optional)</label>
+                  <input style={S.inp} value={conditionDesc} onChange={e=>setConditionDesc(e.target.value)} placeholder="e.g. Light scratch on corner"/>
                 </div>
 
                 {/* Postal code */}
