@@ -2,6 +2,40 @@ import { useState, useEffect } from 'react';
 import PhotoUpload from './PhotoUpload.jsx';
 import { EBAY_CONDITIONS, SHIPPING_SERVICES, EBAY_CATEGORIES, getDefaultItemSpecifics } from './ebayData.js';
 import EbayCategoryPicker from './EbayCategoryPicker.jsx';
+
+// Fallback values for aspects eBay returns as free-text or with incomplete value lists
+// These mirror what eBay's own listing form shows
+const ASPECT_FALLBACKS = {
+  'Game': [
+    'Pokémon TCG','Magic: The Gathering','Yu-Gi-Oh! TCG','Dragon Ball Super',
+    'One Piece TCG','Disney Lorcana','Flesh and Blood','Cardfight!! Vanguard',
+    'Digimon Card Game','Weiss Schwarz','Force of Will','Other',
+  ],
+  'Grade': [
+    'Ungraded','10','9.5','9','8.5','8','7.5','7','6.5','6','5.5',
+    '5','4.5','4','3.5','3','2.5','2','1.5','1','0.5','Authentic',
+  ],
+  'Professional Grader': [
+    'Not Professionally Graded','PSA','BGS (Beckett)','CGC','SGC','HGA','GMA','ACE',
+  ],
+  'Type': ['Card'],
+  'Signed': ['No','Yes'],
+  'Modified Item': ['No','Yes'],
+  'Country/Region of Manufacture': ['Japan','United States','United Kingdom'],
+};
+
+// Aspects that are auto-filled and hidden from the visible list (users never need to change them)
+const AUTO_HIDDEN_ASPECTS = new Set(['Sport']);
+
+// If Grade is Ungraded, auto-set Professional Grader and hide it
+function shouldHideAspect(name, itemSpecifics) {
+  if (AUTO_HIDDEN_ASPECTS.has(name)) return true;
+  if (name === 'Professional Grader') {
+    const grade = itemSpecifics?.find(s => s.name === 'Grade');
+    return !grade || grade.value === 'Ungraded' || grade.value === '';
+  }
+  return false;
+}
 import { isListingDeadZone } from './bundleUtils.js';
 
 const S = {
@@ -52,9 +86,45 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
     setCategorySpecifics(specifics);
     setItemSpecifics(prev => {
       const existing = new Set(prev.map(s => s.name.toLowerCase()));
-      const toAdd = specifics
-        .filter(s => s.required && !existing.has(s.name.toLowerCase()))
-        .map(s => ({ name: s.name, value: s.values[0] || '' }));
+      const toAdd = [];
+
+      specifics.forEach(s => {
+        if (existing.has(s.name.toLowerCase())) return; // already set
+
+        // Merge eBay values with our fallbacks so we always have options
+        const allValues = s.values?.length
+          ? s.values
+          : (ASPECT_FALLBACKS[s.name] || []);
+
+        let value = '';
+
+        if (s.name === 'Sport') {
+          // Auto-fill Sport silently; it will be hidden from the visible list
+          value = allValues.find(v => v.toLowerCase().includes('non-sport')) || allValues[0] || 'Non-Sport Trading Cards';
+          toAdd.push({ name: s.name, value });
+          return;
+        }
+
+        if (s.name === 'Grade') {
+          value = 'Ungraded'; // default to Ungraded for home sellers
+          toAdd.push({ name: s.name, value });
+          return;
+        }
+
+        if (s.name === 'Professional Grader') {
+          // Auto-add but hidden when Grade=Ungraded; value = Not Professionally Graded
+          value = allValues.find(v => v.toLowerCase().includes('not pro')) || 'Not Professionally Graded';
+          toAdd.push({ name: s.name, value });
+          return;
+        }
+
+        if (!s.required) return; // skip non-required aspects
+
+        // Required aspect — add with first sensible value
+        value = allValues[0] || '';
+        toAdd.push({ name: s.name, value });
+      });
+
       return toAdd.length ? [...prev, ...toAdd] : prev;
     });
   };
@@ -311,20 +381,30 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
             </div>
             {itemSpecifics.map((s,i)=>{
               const spec = categorySpecifics?.find(cs=>cs.name.toLowerCase()===s.name.toLowerCase());
-              const hasValues = spec?.values?.length>0;
+              // Use eBay values if available, fall back to our curated list
+              const displayValues = spec?.values?.length
+                ? (s.name==='Grade' && !spec.values.includes('Ungraded')
+                    ? ['Ungraded',...spec.values]   // always offer Ungraded for Grade
+                    : spec.values)
+                : (ASPECT_FALLBACKS[s.name] || []);
+              const hasValues = displayValues.length > 0;
               const isRequired = spec?.required;
+              // Hide Sport (auto-filled) and Professional Grader when Grade=Ungraded
+              if (shouldHideAspect(s.name, itemSpecifics)) return null;
               return(
                 <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:6,marginBottom:4}}>
                   <div style={{position:'relative'}}>
                     <input style={{...S.inp,borderColor:isRequired?'#d29922':'#30363d'}} value={s.name} onChange={e=>updateSpecific(i,'name',e.target.value)} placeholder="Name (e.g. Sport)"/>
-                    {isRequired&&<span style={{position:'absolute',right:6,top:'50%',transform:'translateY(-50%)',fontSize:9,color:'#d29922'}}>REQ</span>}
+                    {isRequired?<span style={{position:'absolute',right:6,top:'50%',transform:'translateY(-50%)',fontSize:9,color:'#d29922'}}>REQ</span>:<span style={{position:'absolute',right:6,top:'50%',transform:'translateY(-50%)',fontSize:9,color:'#6e7681'}}>REC</span>}
                   </div>
-                  {hasValues&&!spec.freeText
+                  {hasValues
                     ? <select style={S.inp} value={s.value} onChange={e=>updateSpecific(i,'value',e.target.value)}>
-                        <option value="">Select...</option>
-                        {spec.values.map(v=><option key={v} value={v}>{v}</option>)}
+                        <option value="">Select…</option>
+                        {displayValues.map(v=><option key={v} value={v}>{v}</option>)}
+                        {s.value&&!displayValues.includes(s.value)&&
+                          <option value={s.value}>{s.value}</option>}
                       </select>
-                    : <input style={S.inp} value={s.value} onChange={e=>updateSpecific(i,'value',e.target.value)} placeholder={hasValues?spec.values[0]:'Value'}/>
+                    : <input style={S.inp} value={s.value} onChange={e=>updateSpecific(i,'value',e.target.value)} placeholder="Enter value"/>
                   }
                   <button type="button" style={{...S.btnSm,color:'#f85149',padding:'4px 8px'}} onClick={()=>removeSpecific(i)}>X</button>
                 </div>
@@ -391,7 +471,10 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
 
                 {/* Disclaimer */}
                 <div style={{...S.note,borderColor:'#30363d',color:'#8b949e',background:'#161b22'}}>
-                  ℹ️ You are responsible for ensuring your listing complies with eBay's <a href="https://www.ebay.co.uk/help/policies/listing-policies/listing-policies?id=4213" target="_blank" rel="noreferrer" style={{color:'#58a6ff'}}>listing policies</a>, item descriptions are accurate, and items are permitted to be sold on eBay.
+                  <span style={{marginRight:4}}>ℹ️</span>
+                  You are responsible for ensuring your listing complies with eBay's{' '}
+                  <a href="https://www.ebay.co.uk/help/policies/listing-policies/listing-policies?id=4213" target="_blank" rel="noreferrer" style={{color:'#58a6ff'}}>listing policies</a>,
+                  {' '}item descriptions are accurate, and items are permitted to be sold on eBay.
                 </div>
 
                 {/* Shipping service */}
