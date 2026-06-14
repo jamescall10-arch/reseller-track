@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import PhotoUpload from './PhotoUpload.jsx';
-import { EBAY_CATEGORIES, EBAY_CONDITIONS, SHIPPING_SERVICES } from './ebayData.js';
+import { EBAY_CATEGORIES, EBAY_CONDITIONS, SHIPPING_SERVICES, getDefaultItemSpecifics } from './ebayData.js';
 import { isListingDeadZone } from './bundleUtils.js';
 
 const S = {
@@ -17,15 +17,15 @@ const S = {
   btn:     { padding:'8px 16px',borderRadius:6,border:'1px solid #30363d',background:'transparent',cursor:'pointer',fontSize:13,color:'#e6edf3',fontFamily:'system-ui',whiteSpace:'nowrap' },
   btnP:    { padding:'8px 16px',borderRadius:6,border:'1px solid #238636',background:'#238636',color:'#fff',cursor:'pointer',fontSize:13,fontWeight:500,fontFamily:'system-ui',whiteSpace:'nowrap' },
   btnE:    { padding:'8px 16px',borderRadius:6,border:'1px solid #f0883e',background:'#f0883e',color:'#fff',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'system-ui',whiteSpace:'nowrap' },
+  btnSm:   { padding:'4px 10px',borderRadius:5,border:'1px solid #30363d',background:'transparent',cursor:'pointer',fontSize:11,color:'#8b949e',fontFamily:'system-ui' },
   note:    { background:'#1c2128',border:'1px solid #9e6a03',color:'#d29922',borderRadius:6,padding:'7px 10px',fontSize:11,display:'flex',gap:8,alignItems:'flex-start' },
   success: { background:'#1a2f1a',border:'1px solid #238636',color:'#3fb950',borderRadius:6,padding:'10px 14px',fontSize:12 },
   error:   { background:'#2d1c00',border:'1px solid #f85149',color:'#f85149',borderRadius:6,padding:'10px 14px',fontSize:12 },
-  preview: { background:'#0d1117',border:'1px solid #30363d',borderRadius:8,padding:'14px 16px' },
-  badge:   (color) => ({ display:'inline-block',background:`${color}15`,color,border:`1px solid ${color}40`,borderRadius:20,padding:'2px 10px',fontSize:11,fontWeight:600,flexShrink:0 }),
   section: { background:'#0d1117',border:'1px solid #30363d',borderRadius:8,padding:'16px' },
+  badge:   (color) => ({ display:'inline-block',background:`${color}15`,color,border:`1px solid ${color}40`,borderRadius:20,padding:'2px 10px',fontSize:11,fontWeight:600,flexShrink:0 }),
 };
 
-export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees, ebayConnected, userId, onSave, onClose, todayEnGB }){
+export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees, ebayConnected, userId, returnPolicy, onSave, onClose, todayEnGB }){
   const [form, setForm] = useState({
     name:         item.name         || '',
     price:        String(item.price || ''),
@@ -36,15 +36,36 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
     photos:       item.photos       || [],
   });
 
-  const [showPreview,   setShowPreview]   = useState(false);
-  const [showPublish,   setShowPublish]   = useState(false);
-  const [shippingService, setShippingService] = useState(SHIPPING_SERVICES.find(s=>s.default)?.id || SHIPPING_SERVICES[0].id);
-  const [postageCost,   setPostageCost]   = useState(String(cfg?.postage || '1.00'));
-  const [postalCode,    setPostalCode]    = useState(cfg?.postalCode || '');
-  const [publishing,    setPublishing]    = useState(false);
-  const [publishResult, setPublishResult] = useState(null); // { success, ebayItemId, listingUrl, error }
+  // Item specifics — pre-populate defaults for known categories
+  const [itemSpecifics, setItemSpecifics] = useState(
+    item.itemSpecifics?.length
+      ? item.itemSpecifics
+      : getDefaultItemSpecifics(item.ebayCategory)
+  );
+
+  const [showPreview,     setShowPreview]     = useState(false);
+  const [showPublish,     setShowPublish]      = useState(false);
+  const [shippingService, setShippingService]  = useState(item.shippingService || (SHIPPING_SERVICES.find(s=>s.default)?.id || SHIPPING_SERVICES[0].id));
+  const [postageCost,     setPostageCost]      = useState(String(cfg?.postage || '1.00'));
+  const [postalCode,      setPostalCode]       = useState(item.postalCode || cfg?.postalCode || '');
+  const [publishing,      setPublishing]       = useState(false);
+  const [publishResult,   setPublishResult]    = useState(null);
 
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  // When category changes, re-populate item specifics if currently empty / only defaults
+  const handleCategoryChange = (newCatId) => {
+    f('ebayCategory', newCatId);
+    const currentNames = new Set(itemSpecifics.map(s => s.name));
+    const defaults = getDefaultItemSpecifics(newCatId);
+    // Add any missing defaults
+    const toAdd = defaults.filter(d => !currentNames.has(d.name));
+    if (toAdd.length) setItemSpecifics(p => [...p, ...toAdd]);
+  };
+
+  const addSpecific = () => setItemSpecifics(p => [...p, { name:'', value:'' }]);
+  const removeSpecific = (i) => setItemSpecifics(p => p.filter((_,idx) => idx !== i));
+  const updateSpecific = (i, key, val) => setItemSpecifics(p => p.map((s,idx) => idx===i ? {...s,[key]:val} : s));
 
   const priceNum   = parseFloat(form.price)   || 0;
   const buyCostNum = parseFloat(form.buyCost) || 0;
@@ -60,13 +81,15 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
   if (cfg?.listingDescription?.trim()) descParts.push(cfg.listingDescription.trim());
   const previewDesc = descParts.join('\n\n');
 
-  // Readiness checks for listing
+  const validSpecifics = itemSpecifics.filter(s => s.name?.trim() && s.value?.trim());
+
   const checks = [
-    { label:'At least 1 photo',       ok: form.photos.length > 0 },
-    { label:'Condition selected',      ok: !!form.condition },
-    { label:'eBay category selected',  ok: !!form.ebayCategory },
-    { label:'Postal code set',         ok: !!postalCode.trim() },
-    { label:'eBay account connected',  ok: !!ebayConnected },
+    { label:'At least 1 photo',                ok: form.photos.length > 0 },
+    { label:'Condition selected',               ok: !!form.condition },
+    { label:'eBay category selected',           ok: !!form.ebayCategory },
+    { label:'Postal code set',                  ok: !!postalCode.trim() },
+    { label:'eBay account connected',           ok: !!ebayConnected },
+    { label:'Item specifics complete',          ok: itemSpecifics.every(s => s.name?.trim() && s.value?.trim()) },
   ];
   const readyToPublish = checks.every(c => c.ok);
 
@@ -82,8 +105,8 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
       condition:    form.condition,
       ebayCategory: form.ebayCategory,
       photos:       form.photos,
+      itemSpecifics,
     });
-    onClose();
   };
 
   const handlePublish = async () => {
@@ -93,7 +116,7 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
     try {
       const res = await fetch('/api/ebay/create-listing', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type':'application/json' },
         body: JSON.stringify({
           userId,
           item: {
@@ -105,30 +128,32 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
             ebayCategory:    form.ebayCategory,
             photos:          form.photos,
             description:     previewDesc,
+            itemSpecifics:   validSpecifics,
             shippingService,
             postageCost:     parseFloat(postageCost) || 0,
             postalCode:      postalCode.trim(),
+            returnPolicy:    returnPolicy,
           },
         }),
       });
       const data = await res.json();
       if (data.success) {
         setPublishResult({ success:true, ebayItemId:data.ebayItemId, listingUrl:data.listingUrl });
-        // Save updated item with eBay listing ID and move to listed
         onSave({
           ...item,
-          name:         form.name.trim(),
-          price:        priceNum,
-          qty:          Math.max(1, parseInt(form.qty, 10) || 1),
-          buyCost:      +buyCostNum.toFixed(2),
-          condition:    form.condition,
-          ebayCategory: form.ebayCategory,
-          photos:       form.photos,
-          ebayItemId:   data.ebayItemId,
+          name:           form.name.trim(),
+          price:          priceNum,
+          qty:            Math.max(1, parseInt(form.qty, 10) || 1),
+          buyCost:        +buyCostNum.toFixed(2),
+          condition:      form.condition,
+          ebayCategory:   form.ebayCategory,
+          photos:         form.photos,
+          itemSpecifics,
+          ebayItemId:     data.ebayItemId,
           ebayListingUrl: data.listingUrl,
-          status:       'listed',
-          listedAt:     todayEnGB ? todayEnGB() : new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}),
-        }, true); // true = don't close modal
+          status:         'listed',
+          listedAt:       todayEnGB ? todayEnGB() : new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}),
+        }, true);
       } else {
         setPublishResult({ success:false, error: data.error || 'Unknown error' });
       }
@@ -147,7 +172,6 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
     <div style={S.overlay} onClick={e=>{ if(e.target===e.currentTarget) onClose(); }}>
       <div style={S.box}>
 
-        {/* Header */}
         <div style={S.header}>
           <div style={{display:'flex',alignItems:'center',gap:10,overflow:'hidden'}}>
             <span style={{fontSize:15,fontWeight:600,color:'#e6edf3',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{form.name||'Unnamed item'}</span>
@@ -167,8 +191,9 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
 
           {/* Name */}
           <div style={S.field}>
-            <label style={S.lbl}>Item name</label>
-            <input style={S.inp} value={form.name} onChange={e=>f('name',e.target.value)} placeholder="Item name"/>
+            <label style={S.lbl}>Item name <span style={{color:'#6e7681'}}>(max 80 characters on eBay)</span></label>
+            <input style={S.inp} value={form.name} onChange={e=>f('name',e.target.value)} placeholder="Item name" maxLength={80}/>
+            <div style={{fontSize:10,color:form.name.length>70?'#d29922':'#6e7681'}}>{form.name.length}/80 characters</div>
           </div>
 
           {/* Price / Qty / Buy cost */}
@@ -187,8 +212,7 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
             </div>
           </div>
 
-          {/* Dead zone / profit */}
-          {deadZone&&<div style={S.note}>⚠️ Prices between £10–£12.30 can earn less after signed postage. Consider pricing above or below this range.</div>}
+          {deadZone&&<div style={S.note}>⚠️ Prices between £10–£12.30 often earn less after signed postage. Consider pricing above or below this range.</div>}
           {priceNum>0&&(
             <div style={{background:'#21262d',borderRadius:6,padding:'8px 12px',fontSize:12,display:'flex',gap:16,flexWrap:'wrap'}}>
               <span style={{color:'#8b949e'}}>Est. fees: <strong style={{color:'#f85149'}}>{sym}{fees.toFixed(2)}</strong></span>
@@ -212,7 +236,7 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
             </div>
             <div style={S.field}>
               <label style={S.lbl}>eBay category</label>
-              <select style={S.inp} value={form.ebayCategory} onChange={e=>f('ebayCategory',e.target.value)}>
+              <select style={S.inp} value={form.ebayCategory} onChange={e=>handleCategoryChange(e.target.value)}>
                 <option value="">Select category…</option>
                 {EBAY_CATEGORIES.map(g=>(
                   <optgroup key={g.group} label={g.group}>
@@ -223,12 +247,30 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
             </div>
           </div>
 
+          {/* Item specifics */}
+          <div style={S.field}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+              <label style={S.lbl}>Item specifics <span style={{color:'#6e7681'}}>(required by eBay for many categories)</span></label>
+              <button type="button" style={S.btnSm} onClick={addSpecific}>＋ Add</button>
+            </div>
+            {itemSpecifics.length===0&&(
+              <div style={{fontSize:11,color:'#6e7681',padding:'6px 0'}}>No item specifics yet. Some categories require these — e.g. Pokémon cards need Sport: Non-Sport Trading Cards</div>
+            )}
+            {itemSpecifics.map((s,i)=>(
+              <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:6,marginBottom:4}}>
+                <input style={S.inp} value={s.name} onChange={e=>updateSpecific(i,'name',e.target.value)} placeholder="Name (e.g. Sport)"/>
+                <input style={S.inp} value={s.value} onChange={e=>updateSpecific(i,'value',e.target.value)} placeholder="Value (e.g. Non-Sport Trading Cards)"/>
+                <button type="button" style={{...S.btnSm,color:'#f85149',padding:'4px 8px'}} onClick={()=>removeSpecific(i)}>✕</button>
+              </div>
+            ))}
+          </div>
+
           {/* eBay listing preview */}
           <button type="button" style={{...S.btn,fontSize:12,padding:'5px 10px',alignSelf:'flex-start'}} onClick={()=>setShowPreview(p=>!p)}>
             {showPreview?'▲ Hide':'▼ Show'} eBay listing preview
           </button>
           {showPreview&&(
-            <div style={S.preview}>
+            <div style={{background:'#0d1117',border:'1px solid #30363d',borderRadius:8,padding:'14px 16px'}}>
               {form.photos.length>0
                 ? <div style={{display:'flex',gap:8,marginBottom:12,overflowX:'auto',paddingBottom:4}}>
                     {form.photos.map((url,i)=><img key={i} src={url} alt="" style={{width:80,height:80,objectFit:'cover',borderRadius:6,flexShrink:0,border:'1px solid #30363d'}}/>)}
@@ -241,6 +283,13 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
                 {form.condition&&<span style={{fontSize:12,color:'#8b949e',alignSelf:'center'}}>{form.condition}</span>}
                 {catName&&<span style={{fontSize:11,color:'#6e7681',alignSelf:'center'}}>{catName}</span>}
               </div>
+              {validSpecifics.length>0&&(
+                <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:8}}>
+                  {validSpecifics.map(s=>(
+                    <span key={s.name} style={{background:'#21262d',borderRadius:4,padding:'2px 8px',fontSize:11,color:'#8b949e'}}><strong>{s.name}:</strong> {s.value}</span>
+                  ))}
+                </div>
+              )}
               {previewDesc
                 ? <div style={{fontSize:12,color:'#8b949e',lineHeight:1.7,whiteSpace:'pre-wrap',borderTop:'1px solid #30363d',paddingTop:8}}>{previewDesc}</div>
                 : <div style={{fontSize:11,color:'#6e7681',borderTop:'1px solid #30363d',paddingTop:8}}>No description — add one in ⚙️ Settings</div>
@@ -253,7 +302,7 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:showPublish?14:0}}>
               <div>
                 <div style={{fontSize:13,fontWeight:600,color:'#e6edf3'}}>🏷 Publish to eBay</div>
-                <div style={{fontSize:11,color:'#8b949e',marginTop:2}}>Create a live eBay listing directly from here</div>
+                <div style={{fontSize:11,color:'#8b949e',marginTop:2}}>Create a live listing directly from ResellerTrack</div>
               </div>
               <button style={{...S.btn,fontSize:12,padding:'5px 10px'}} onClick={()=>setShowPublish(p=>!p)}>
                 {showPublish?'▲ Hide':'▼ Show'}
@@ -264,13 +313,18 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
               <div style={{display:'flex',flexDirection:'column',gap:12}}>
 
                 {/* Readiness checklist */}
-                <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                <div style={{display:'flex',flexDirection:'column',gap:5}}>
                   {checks.map(c=>(
                     <div key={c.label} style={{display:'flex',alignItems:'center',gap:8,fontSize:12}}>
-                      <span style={{color:c.ok?'#3fb950':'#f85149',fontSize:14}}>{c.ok?'✓':'✗'}</span>
+                      <span style={{color:c.ok?'#3fb950':'#f85149',fontSize:14,minWidth:14}}>{c.ok?'✓':'✗'}</span>
                       <span style={{color:c.ok?'#8b949e':'#e6edf3'}}>{c.label}</span>
                     </div>
                   ))}
+                </div>
+
+                {/* Disclaimer */}
+                <div style={{...S.note,borderColor:'#30363d',color:'#8b949e',background:'#161b22'}}>
+                  ℹ️ You are responsible for ensuring your listing complies with eBay's <a href="https://www.ebay.co.uk/help/policies/listing-policies/listing-policies?id=4213" target="_blank" rel="noreferrer" style={{color:'#58a6ff'}}>listing policies</a>, item descriptions are accurate, and items are permitted to be sold on eBay.
                 </div>
 
                 {/* Shipping service */}
@@ -289,26 +343,32 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
 
                 {/* Postal code */}
                 <div style={S.field}>
-                  <label style={S.lbl}>Your postal code (for item location on eBay)</label>
+                  <label style={S.lbl}>Your postal code (item location shown on eBay)</label>
                   <input style={{...S.inp,maxWidth:160}} value={postalCode} onChange={e=>setPostalCode(e.target.value)} placeholder="e.g. LE11 1AA"/>
                   <div style={{fontSize:10,color:'#6e7681',marginTop:2}}>Set once in ⚙️ Settings so you don't have to enter it each time</div>
+                </div>
+
+                {/* Return policy status */}
+                <div style={{fontSize:11,color:'#8b949e'}}>
+                  Return policy: <strong style={{color:returnPolicy?.enabled?'#e6edf3':'#6e7681'}}>{returnPolicy?.enabled?`Enabled — ${returnPolicy.accepted?'accepted, '+returnPolicy.within.replace('Days_','')+ ' days, paid by '+returnPolicy.paidBy:'not accepted'}`:'Not included (using your eBay account default)'}</strong>
+                  {' — '}<span style={{color:'#58a6ff'}}>change in ⚙️ Settings</span>
                 </div>
 
                 {/* Publish result */}
                 {publishResult?.success&&(
                   <div style={S.success}>
                     <div style={{fontWeight:600,marginBottom:4}}>✓ Listed on eBay!</div>
-                    <div>Item ID: {publishResult.ebayItemId} · <a href={publishResult.listingUrl} target="_blank" rel="noreferrer" style={{color:'#3fb950'}}>View listing ↗</a></div>
+                    <div>Listing ID: {publishResult.ebayItemId} · <a href={publishResult.listingUrl} target="_blank" rel="noreferrer" style={{color:'#3fb950'}}>View listing on eBay ↗</a></div>
                   </div>
                 )}
                 {publishResult?.error&&(
                   <div style={S.error}>
                     <div style={{fontWeight:600,marginBottom:4}}>✗ Listing failed</div>
                     <div>{publishResult.error}</div>
+                    <div style={{marginTop:6,fontSize:11,color:'#f85149',opacity:.7}}>Check the checklist above, review item specifics, and ensure your eBay account is in good standing.</div>
                   </div>
                 )}
 
-                {/* Publish button */}
                 {!publishResult?.success&&(
                   <button
                     style={{...S.btnE,opacity:(!readyToPublish||publishing)?0.5:1,cursor:(!readyToPublish||publishing)?'not-allowed':'pointer'}}
@@ -318,16 +378,13 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
                     {publishing?'Publishing…':'🏷 Publish listing on eBay'}
                   </button>
                 )}
-                {publishResult?.success&&(
-                  <button style={S.btn} onClick={onClose}>Close</button>
-                )}
+                {publishResult?.success&&<button style={S.btn} onClick={onClose}>Done</button>}
               </div>
             )}
           </div>
 
         </div>
 
-        {/* Footer */}
         <div style={S.footer}>
           <span style={{fontSize:11,color:'#6e7681',alignSelf:'center',marginRight:'auto'}}>
             Added {item.dateStr}{item.listedAt?` · Listed ${item.listedAt}`:''}
