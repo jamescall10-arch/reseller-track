@@ -1,3 +1,5 @@
+// Generates eBay OAuth URL for user to connect their account
+// Scopes include Inventory, Account, Fulfillment and Finances REST APIs
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -6,10 +8,7 @@ export default async function handler(req, res) {
 
   const clientId = process.env.EBAY_APP_ID;
   const ruName   = process.env.EBAY_RUNAME;
-
-  if (!clientId || !ruName) {
-    return res.status(500).json({ error: 'eBay credentials not configured' });
-  }
+  if (!clientId || !ruName) return res.status(500).json({ error: 'eBay credentials not configured' });
 
   const scopes = [
     'https://api.ebay.com/oauth/api_scope',
@@ -17,6 +16,8 @@ export default async function handler(req, res) {
     'https://api.ebay.com/oauth/api_scope/sell.inventory.readonly',
     'https://api.ebay.com/oauth/api_scope/sell.account',
     'https://api.ebay.com/oauth/api_scope/sell.account.readonly',
+    'https://api.ebay.com/oauth/api_scope/sell.fulfillment.readonly',
+    'https://api.ebay.com/oauth/api_scope/sell.finances',
     'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly',
   ].join(' ');
 
@@ -28,6 +29,5 @@ export default async function handler(req, res) {
     state:         userId,
   });
 
-  const authUrl = `https://auth.ebay.com/oauth2/authorize?${params.toString()}`;
-  return res.status(200).json({ url: authUrl });
+  return res.status(200).json({ url: `https://auth.ebay.com/oauth2/authorize?${params}` });
 }
