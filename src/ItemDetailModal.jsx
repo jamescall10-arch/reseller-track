@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import PhotoUpload from './PhotoUpload.jsx';
-import { EBAY_CATEGORIES, EBAY_CONDITIONS, SHIPPING_SERVICES, getDefaultItemSpecifics } from './ebayData.js';
+import { EBAY_CONDITIONS, SHIPPING_SERVICES } from './ebayData.js';
+import EbayCategoryPicker from './EbayCategoryPicker.jsx';
 import { isListingDeadZone } from './bundleUtils.js';
 
 const S = {
@@ -44,7 +45,19 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
   );
 
   const [categorySpecifics, setCategorySpecifics] = useState(null);
+  const [categoryPath,      setCategoryPath]      = useState(item.categoryPath || []);
   const [loadingSpecifics,  setLoadingSpecifics]  = useState(false);
+
+  const handleSpecificsLoaded = (specifics) => {
+    setCategorySpecifics(specifics);
+    setItemSpecifics(prev => {
+      const existing = new Set(prev.map(s => s.name.toLowerCase()));
+      const toAdd = specifics
+        .filter(s => s.required && !existing.has(s.name.toLowerCase()))
+        .map(s => ({ name: s.name, value: s.values[0] || '' }));
+      return toAdd.length ? [...prev, ...toAdd] : prev;
+    });
+  };
 
   const fetchCategorySpecifics = async (catId) => {
     if (!catId || !userId) return;
@@ -84,13 +97,9 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   // When category changes, re-populate item specifics if currently empty / only defaults
-  const handleCategoryChange = (newCatId) => {
+  const handleCategoryChange = (newCatId, path) => {
     f('ebayCategory', newCatId);
-    const currentNames = new Set(itemSpecifics.map(s => s.name));
-    const defaults = getDefaultItemSpecifics(newCatId);
-    const toAdd = defaults.filter(d => !currentNames.has(d.name));
-    if (toAdd.length) setItemSpecifics(p => [...p, ...toAdd]);
-    fetchCategorySpecifics(newCatId);
+    if (path) setCategoryPath(path);
   };
 
   const addSpecific = () => setItemSpecifics(p => [...p, { name:'', value:'' }]);
@@ -136,6 +145,7 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
       ebayCategory: form.ebayCategory,
       photos:       form.photos,
       itemSpecifics,
+      categoryPath,
     });
   };
 
@@ -266,14 +276,15 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
             </div>
             <div style={S.field}>
               <label style={S.lbl}>eBay category</label>
-              <select style={S.inp} value={form.ebayCategory} onChange={e=>handleCategoryChange(e.target.value)}>
-                <option value="">Select category…</option>
-                {EBAY_CATEGORIES.map(g=>(
-                  <optgroup key={g.group} label={g.group}>
-                    {g.items.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-                  </optgroup>
-                ))}
-              </select>
+              <EbayCategoryPicker
+                value={form.ebayCategory}
+                valuePath={categoryPath}
+                onChange={handleCategoryChange}
+                userId={userId}
+                itemName={form.name}
+                ebayConnected={ebayConnected}
+                onSpecificsLoaded={handleSpecificsLoaded}
+              />
             </div>
           </div>
 
