@@ -13,13 +13,28 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       const fetch_p = async (type) => {
         const r = await fetch(EBAY_API+'/sell/account/v1/'+type+'_policy?marketplace_id='+MARKETPLACE_ID, {headers:ebayHeaders(token)});
-        if (r.status===404) return [];
-        if (!r.ok) { const e=await r.json().catch(()=>({})); throw new Error(type+' policies: '+(e.errors||[]).map(x=>x.message).join(', ')||r.statusText); }
+        if (r.status===404) return { policies:[], hint:'not_opted_in' };
+        if (r.status===403) return { policies:[], hint:'missing_scope' };
+        if (!r.ok) {
+          const e=await r.json().catch(()=>({}));
+          const msg=(e.errors||[]).map(x=>x.message).join(', ')||r.statusText;
+          console.error('[setup] '+type+' policy error:',r.status,msg);
+          return { policies:[], hint:'error', detail:msg };
+        }
         const d = await r.json();
-        return d[type+'Policies'] || [];
+        return { policies: d[type+'Policies'] || [], hint: 'ok' };
       };
-      const [fulfillment,payment,returns] = await Promise.all([fetch_p('fulfillment'),fetch_p('payment'),fetch_p('return')]);
-      return res.status(200).json({ fulfillment, payment, returns });
+      const [ful,pay,ret] = await Promise.all([fetch_p('fulfillment'),fetch_p('payment'),fetch_p('return')]);
+      // Surface the most useful hint to the frontend
+      const hints = [ful.hint,pay.hint,ret.hint];
+      const globalHint = hints.includes('missing_scope') ? 'missing_scope'
+                       : hints.includes('not_opted_in')  ? 'not_opted_in'
+                       : hints.includes('error')         ? 'error' : 'ok';
+      return res.status(200).json({
+        fulfillment: ful.policies, payment: pay.policies, returns: ret.policies,
+        hint: globalHint,
+        detail: [ful.detail,pay.detail,ret.detail].filter(Boolean).join(' | '),
+      });
     }
 
     // ── POST: create/check inventory location ──────────────────────────────
