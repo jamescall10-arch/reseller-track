@@ -133,23 +133,33 @@ export const EBAY_CONDITIONS = [
   ]},
 ];
 
-export const buildEbayListingUrl = (item, cfg) => {
-  const base = 'https://www.ebay.co.uk/sell/list';
-  const p = new URLSearchParams();
-
-  p.set('title', item.name || '');
-  if(item.price > 0) p.set('price', item.price.toFixed(2));
-
-  const qty = Math.max(1, Math.floor(Number(item.qty)) || 1);
-  if(qty > 1) p.set('qty', qty.toString());
-
-  if(item.ebayCategory) p.set('categoryId', item.ebayCategory);
-
-  // Build description: condition line + blank line + template
-  const parts = [];
-  if(item.condition) parts.push(`Condition: ${item.condition}`);
-  if(cfg?.listingDescription?.trim()) parts.push(cfg.listingDescription.trim());
-  if(parts.length) p.set('description', parts.join('\n\n'));
-
-  return `${base}?${p.toString()}`;
+// ── eBay condition ID mapping ─────────────────────────────────────────────────
+export const CONDITION_IDS = {
+  'New':                           1000,
+  'Open box':                      1500,
+  'Seller refurbished':            2500,
+  'Used — Like New':               2750,
+  'Near Mint or Better (NM/M)':    2750,
+  'Used — Very Good':              3000,
+  'Lightly Played (LP)':           3000,
+  'Used — Good':                   4000,
+  'Moderately Played (MP)':        4000,
+  'Used — Acceptable':             5000,
+  'Heavily Played (HP)':           5000,
+  'Damaged (D)':                   6000,
+  'For parts or not working':      7000,
 };
+
+export const getConditionId = (condition) =>
+  CONDITION_IDS[condition] ?? 3000; // default: Used - Very Good
+
+// ── Shipping service options ───────────────────────────────────────────────────
+export const SHIPPING_SERVICES = [
+  { id:'UK_RoyalMailSecondClassStandard',  label:'Royal Mail 2nd Class',           default:true  },
+  { id:'UK_RoyalMailFirstClassStandard',   label:'Royal Mail 1st Class',           default:false },
+  { id:'UK_RoyalMailTracked48',            label:'Royal Mail Tracked 48',          default:false },
+  { id:'UK_RoyalMailTracked24',            label:'Royal Mail Tracked 24',          default:false },
+  { id:'UK_RoyalMailSecondClassRecorded',  label:'Royal Mail Signed For 2nd Class',default:false },
+  { id:'UK_RoyalMailFirstClassRecorded',   label:'Royal Mail Signed For 1st Class',default:false },
+  { id:'UK_CollectInPerson',               label:'Collect in Person',              default:false },
+];
