@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import PhotoUpload from './PhotoUpload.jsx';
-import { EBAY_CATEGORIES, EBAY_CONDITIONS } from './ebayData.js';
+import { EBAY_CATEGORIES, EBAY_CONDITIONS, SHIPPING_SERVICES } from './ebayData.js';
 import { isListingDeadZone } from './bundleUtils.js';
 
 const S = {
   overlay: { position:'fixed',inset:0,background:'rgba(1,4,9,0.85)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200,padding:'16px' },
-  box:     { background:'#161b22',border:'1px solid #30363d',borderRadius:12,width:'100%',maxWidth:680,maxHeight:'92vh',overflowY:'auto',display:'flex',flexDirection:'column' },
+  box:     { background:'#161b22',border:'1px solid #30363d',borderRadius:12,width:'100%',maxWidth:700,maxHeight:'92vh',overflowY:'auto',display:'flex',flexDirection:'column' },
   header:  { display:'flex',justifyContent:'space-between',alignItems:'center',padding:'16px 20px',borderBottom:'1px solid #30363d',flexShrink:0 },
   body:    { padding:'20px',display:'flex',flexDirection:'column',gap:14,flex:1 },
   footer:  { padding:'14px 20px',borderTop:'1px solid #30363d',display:'flex',gap:8,justifyContent:'flex-end',flexShrink:0,flexWrap:'wrap' },
@@ -16,41 +16,59 @@ const S = {
   row3:    { display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12 },
   btn:     { padding:'8px 16px',borderRadius:6,border:'1px solid #30363d',background:'transparent',cursor:'pointer',fontSize:13,color:'#e6edf3',fontFamily:'system-ui',whiteSpace:'nowrap' },
   btnP:    { padding:'8px 16px',borderRadius:6,border:'1px solid #238636',background:'#238636',color:'#fff',cursor:'pointer',fontSize:13,fontWeight:500,fontFamily:'system-ui',whiteSpace:'nowrap' },
-  btnR:    { padding:'8px 16px',borderRadius:6,border:'1px solid #1f6feb',background:'transparent',color:'#58a6ff',cursor:'pointer',fontSize:13,fontFamily:'system-ui',whiteSpace:'nowrap' },
-  note:    { background:'#1c2128',border:'1px solid #9e6a03',color:'#d29922',borderRadius:6,padding:'7px 10px',fontSize:11,display:'flex',gap:8 },
+  btnE:    { padding:'8px 16px',borderRadius:6,border:'1px solid #f0883e',background:'#f0883e',color:'#fff',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'system-ui',whiteSpace:'nowrap' },
+  note:    { background:'#1c2128',border:'1px solid #9e6a03',color:'#d29922',borderRadius:6,padding:'7px 10px',fontSize:11,display:'flex',gap:8,alignItems:'flex-start' },
+  success: { background:'#1a2f1a',border:'1px solid #238636',color:'#3fb950',borderRadius:6,padding:'10px 14px',fontSize:12 },
+  error:   { background:'#2d1c00',border:'1px solid #f85149',color:'#f85149',borderRadius:6,padding:'10px 14px',fontSize:12 },
   preview: { background:'#0d1117',border:'1px solid #30363d',borderRadius:8,padding:'14px 16px' },
-  preH:    { fontSize:11,fontWeight:500,color:'#8b949e',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:10 },
-  badge:   { display:'inline-block',background:'rgba(240,136,62,0.12)',color:'#f0883e',border:'1px solid rgba(240,136,62,0.25)',borderRadius:20,padding:'2px 10px',fontSize:11,fontWeight:600 },
+  badge:   (color) => ({ display:'inline-block',background:`${color}15`,color,border:`1px solid ${color}40`,borderRadius:20,padding:'2px 10px',fontSize:11,fontWeight:600,flexShrink:0 }),
+  section: { background:'#0d1117',border:'1px solid #30363d',borderRadius:8,padding:'16px' },
 };
 
-export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees, onSave, onClose }){
+export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees, ebayConnected, userId, onSave, onClose, todayEnGB }){
   const [form, setForm] = useState({
-    name:        item.name || '',
-    price:       String(item.price || ''),
-    qty:         String(Math.max(1, Math.floor(Number(item.qty)) || 1)),
-    buyCost:     (item.buyCost > 0) ? String(item.buyCost) : '',
-    condition:   item.condition    || '',
-    ebayCategory:item.ebayCategory || '',
-    photos:      item.photos       || [],
+    name:         item.name         || '',
+    price:        String(item.price || ''),
+    qty:          String(Math.max(1, Math.floor(Number(item.qty)) || 1)),
+    buyCost:      (item.buyCost > 0) ? String(item.buyCost) : '',
+    condition:    item.condition    || '',
+    ebayCategory: item.ebayCategory || '',
+    photos:       item.photos       || [],
   });
 
-  const [showPreview, setShowPreview] = useState(false);
+  const [showPreview,   setShowPreview]   = useState(false);
+  const [showPublish,   setShowPublish]   = useState(false);
+  const [shippingService, setShippingService] = useState(SHIPPING_SERVICES.find(s=>s.default)?.id || SHIPPING_SERVICES[0].id);
+  const [postageCost,   setPostageCost]   = useState(String(cfg?.postage || '1.00'));
+  const [postalCode,    setPostalCode]    = useState(cfg?.postalCode || '');
+  const [publishing,    setPublishing]    = useState(false);
+  const [publishResult, setPublishResult] = useState(null); // { success, ebayItemId, listingUrl, error }
 
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
-  const priceNum   = parseFloat(form.price) || 0;
+  const priceNum   = parseFloat(form.price)   || 0;
   const buyCostNum = parseFloat(form.buyCost) || 0;
   const fees       = calcFees ? calcFees(priceNum) : +(priceNum * 0.129 + 0.30).toFixed(2);
   const estProfit  = +(priceNum - fees - buyCostNum).toFixed(2);
   const deadZone   = isListingDeadZone(form.price);
 
-  const catName = EBAY_CATEGORIES.flatMap(g => g.items).find(c => c.id === form.ebayCategory)?.name || '';
-  const catLabel = cats?.find(c => c.id === item.categoryId)?.name || '';
+  const catName  = EBAY_CATEGORIES.flatMap(g=>g.items).find(c=>c.id===form.ebayCategory)?.name || '';
+  const catLabel = cats?.find(c=>c.id===item.categoryId)?.name || '';
 
   const descParts = [];
   if (form.condition) descParts.push(`Condition: ${form.condition}`);
   if (cfg?.listingDescription?.trim()) descParts.push(cfg.listingDescription.trim());
   const previewDesc = descParts.join('\n\n');
+
+  // Readiness checks for listing
+  const checks = [
+    { label:'At least 1 photo',       ok: form.photos.length > 0 },
+    { label:'Condition selected',      ok: !!form.condition },
+    { label:'eBay category selected',  ok: !!form.ebayCategory },
+    { label:'Postal code set',         ok: !!postalCode.trim() },
+    { label:'eBay account connected',  ok: !!ebayConnected },
+  ];
+  const readyToPublish = checks.every(c => c.ok);
 
   const handleSave = () => {
     if (!form.name.trim()) { alert('Name required'); return; }
@@ -68,19 +86,73 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
     onClose();
   };
 
+  const handlePublish = async () => {
+    if (!readyToPublish) return;
+    setPublishing(true);
+    setPublishResult(null);
+    try {
+      const res = await fetch('/api/ebay/create-listing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          item: {
+            ...item,
+            name:            form.name.trim(),
+            price:           priceNum,
+            qty:             Math.max(1, parseInt(form.qty, 10) || 1),
+            condition:       form.condition,
+            ebayCategory:    form.ebayCategory,
+            photos:          form.photos,
+            description:     previewDesc,
+            shippingService,
+            postageCost:     parseFloat(postageCost) || 0,
+            postalCode:      postalCode.trim(),
+          },
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPublishResult({ success:true, ebayItemId:data.ebayItemId, listingUrl:data.listingUrl });
+        // Save updated item with eBay listing ID and move to listed
+        onSave({
+          ...item,
+          name:         form.name.trim(),
+          price:        priceNum,
+          qty:          Math.max(1, parseInt(form.qty, 10) || 1),
+          buyCost:      +buyCostNum.toFixed(2),
+          condition:    form.condition,
+          ebayCategory: form.ebayCategory,
+          photos:       form.photos,
+          ebayItemId:   data.ebayItemId,
+          ebayListingUrl: data.listingUrl,
+          status:       'listed',
+          listedAt:     todayEnGB ? todayEnGB() : new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}),
+        }, true); // true = don't close modal
+      } else {
+        setPublishResult({ success:false, error: data.error || 'Unknown error' });
+      }
+    } catch (e) {
+      setPublishResult({ success:false, error: e.message });
+    } finally {
+      setPublishing(false);
+    }
+  };
+
   const statusBadge = item.status === 'listed'
     ? { label:'Active listing', color:'#f0883e' }
     : { label:'In stock', color:'#8b949e' };
 
   return (
-    <div style={S.overlay} onClick={e => { if(e.target===e.currentTarget) onClose(); }}>
+    <div style={S.overlay} onClick={e=>{ if(e.target===e.currentTarget) onClose(); }}>
       <div style={S.box}>
 
         {/* Header */}
         <div style={S.header}>
           <div style={{display:'flex',alignItems:'center',gap:10,overflow:'hidden'}}>
             <span style={{fontSize:15,fontWeight:600,color:'#e6edf3',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{form.name||'Unnamed item'}</span>
-            <span style={{...S.badge,color:statusBadge.color,borderColor:`${statusBadge.color}40`,background:`${statusBadge.color}15`,flexShrink:0}}>{statusBadge.label}</span>
+            <span style={S.badge(statusBadge.color)}>{statusBadge.label}</span>
+            {item.ebayItemId&&<span style={S.badge('#3fb950')}>Live on eBay</span>}
           </div>
           <button style={{...S.btn,padding:'3px 8px',flexShrink:0}} onClick={onClose}>✕</button>
         </div>
@@ -90,65 +162,61 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
           {/* Photos */}
           <div style={S.field}>
             <label style={S.lbl}>Photos ({form.photos.length}/12)</label>
-            <PhotoUpload photos={form.photos} onChange={v => f('photos', v)}/>
+            <PhotoUpload photos={form.photos} onChange={v=>f('photos',v)}/>
           </div>
 
           {/* Name */}
           <div style={S.field}>
             <label style={S.lbl}>Item name</label>
-            <input style={S.inp} value={form.name} onChange={e => f('name', e.target.value)} placeholder="Item name"/>
+            <input style={S.inp} value={form.name} onChange={e=>f('name',e.target.value)} placeholder="Item name"/>
           </div>
 
           {/* Price / Qty / Buy cost */}
           <div style={S.row3}>
             <div style={S.field}>
               <label style={S.lbl}>Price ({sym})</label>
-              <input style={S.inp} type="number" step="0.01" min="0" value={form.price} onChange={e => f('price', e.target.value)} placeholder="0.00"/>
+              <input style={S.inp} type="number" step="0.01" min="0" value={form.price} onChange={e=>f('price',e.target.value)} placeholder="0.00"/>
             </div>
             <div style={S.field}>
               <label style={S.lbl}>Quantity</label>
-              <input style={S.inp} type="number" step="1" min="1" value={form.qty} onChange={e => f('qty', e.target.value)}/>
+              <input style={S.inp} type="number" step="1" min="1" value={form.qty} onChange={e=>f('qty',e.target.value)}/>
             </div>
             <div style={S.field}>
               <label style={S.lbl}>Item cost ({sym})</label>
-              <input style={S.inp} type="number" step="0.01" min="0" value={form.buyCost} onChange={e => f('buyCost', e.target.value)} placeholder="0.00"/>
+              <input style={S.inp} type="number" step="0.01" min="0" value={form.buyCost} onChange={e=>f('buyCost',e.target.value)} placeholder="0.00"/>
             </div>
           </div>
 
-          {/* Dead zone warning */}
-          {deadZone && (
-            <div style={S.note}>⚠️ Prices between £10 and £12.30 often earn less after extra postage. Consider pricing above or below this range.</div>
-          )}
-
-          {/* Profit estimate */}
-          {priceNum > 0 && (
+          {/* Dead zone / profit */}
+          {deadZone&&<div style={S.note}>⚠️ Prices between £10–£12.30 can earn less after signed postage. Consider pricing above or below this range.</div>}
+          {priceNum>0&&(
             <div style={{background:'#21262d',borderRadius:6,padding:'8px 12px',fontSize:12,display:'flex',gap:16,flexWrap:'wrap'}}>
               <span style={{color:'#8b949e'}}>Est. fees: <strong style={{color:'#f85149'}}>{sym}{fees.toFixed(2)}</strong></span>
-              <span style={{color:'#8b949e'}}>Est. profit: <strong style={{color:estProfit>=0?'#3fb950':'#f85149'}}>{sym}{estProfit.toFixed(2)}</strong></span>
-              {catLabel&&<span style={{color:'#8b949e'}}>Category: <strong style={{color:'#e6edf3'}}>{catLabel}</strong></span>}
+              <span style={{color:'#8b949e'}}>Est. profit after cost: <strong style={{color:estProfit>=0?'#3fb950':'#f85149'}}>{sym}{estProfit.toFixed(2)}</strong></span>
+              {catLabel&&<span style={{color:'#8b949e'}}>App category: <strong style={{color:'#e6edf3'}}>{catLabel}</strong></span>}
             </div>
           )}
 
-          {/* Condition */}
+          {/* Condition + eBay category */}
           <div style={S.row2}>
             <div style={S.field}>
               <label style={S.lbl}>Condition</label>
-              <select style={S.inp} value={form.condition} onChange={e => f('condition', e.target.value)}>
+              <select style={S.inp} value={form.condition} onChange={e=>f('condition',e.target.value)}>
                 <option value="">Select condition…</option>
-                {EBAY_CONDITIONS.map(g => (
+                {EBAY_CONDITIONS.map(g=>(
                   <optgroup key={g.group} label={g.group}>
-                    {g.items.map(c => <option key={c} value={c}>{c}</option>)}
+                    {g.items.map(c=><option key={c} value={c}>{c}</option>)}
                   </optgroup>
                 ))}
               </select>
             </div>
             <div style={S.field}>
               <label style={S.lbl}>eBay category</label>
-              <select style={S.inp} value={form.ebayCategory} onChange={e => f('ebayCategory', e.target.value)}>
+              <select style={S.inp} value={form.ebayCategory} onChange={e=>f('ebayCategory',e.target.value)}>
                 <option value="">Select category…</option>
-                {EBAY_CATEGORIES.map(g => (
+                {EBAY_CATEGORIES.map(g=>(
                   <optgroup key={g.group} label={g.group}>
-                    {g.items.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    {g.items.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
                   </optgroup>
                 ))}
               </select>
@@ -156,38 +224,102 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
           </div>
 
           {/* eBay listing preview */}
-          <div>
-            <button
-              type="button"
-              style={{...S.btn,fontSize:12,padding:'5px 10px',marginBottom:8}}
-              onClick={() => setShowPreview(p => !p)}
-            >
-              {showPreview ? '▲ Hide' : '▼ Show'} eBay listing preview
-            </button>
-            {showPreview && (
-              <div style={S.preview}>
-                <div style={S.preH}>eBay listing preview</div>
-                {form.photos.length > 0 && (
-                  <div style={{display:'flex',gap:8,marginBottom:12,overflowX:'auto',paddingBottom:4}}>
-                    {form.photos.map((url,i) => (
-                      <img key={i} src={url} alt="" style={{width:80,height:80,objectFit:'cover',borderRadius:6,flexShrink:0,border:'1px solid #30363d'}}/>
-                    ))}
+          <button type="button" style={{...S.btn,fontSize:12,padding:'5px 10px',alignSelf:'flex-start'}} onClick={()=>setShowPreview(p=>!p)}>
+            {showPreview?'▲ Hide':'▼ Show'} eBay listing preview
+          </button>
+          {showPreview&&(
+            <div style={S.preview}>
+              {form.photos.length>0
+                ? <div style={{display:'flex',gap:8,marginBottom:12,overflowX:'auto',paddingBottom:4}}>
+                    {form.photos.map((url,i)=><img key={i} src={url} alt="" style={{width:80,height:80,objectFit:'cover',borderRadius:6,flexShrink:0,border:'1px solid #30363d'}}/>)}
+                  </div>
+                : <div style={{background:'#21262d',borderRadius:6,height:80,display:'flex',alignItems:'center',justifyContent:'center',color:'#6e7681',fontSize:12,marginBottom:12}}>No photos — add photos above</div>
+              }
+              <div style={{fontSize:17,fontWeight:700,color:'#e6edf3',marginBottom:6,lineHeight:1.3}}>{form.name||'Item name'}</div>
+              <div style={{display:'flex',gap:12,marginBottom:8,flexWrap:'wrap'}}>
+                <span style={{fontSize:22,fontWeight:700,color:'#f0883e'}}>{sym}{priceNum.toFixed(2)}</span>
+                {form.condition&&<span style={{fontSize:12,color:'#8b949e',alignSelf:'center'}}>{form.condition}</span>}
+                {catName&&<span style={{fontSize:11,color:'#6e7681',alignSelf:'center'}}>{catName}</span>}
+              </div>
+              {previewDesc
+                ? <div style={{fontSize:12,color:'#8b949e',lineHeight:1.7,whiteSpace:'pre-wrap',borderTop:'1px solid #30363d',paddingTop:8}}>{previewDesc}</div>
+                : <div style={{fontSize:11,color:'#6e7681',borderTop:'1px solid #30363d',paddingTop:8}}>No description — add one in ⚙️ Settings</div>
+              }
+            </div>
+          )}
+
+          {/* Publish to eBay */}
+          <div style={S.section}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:showPublish?14:0}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:600,color:'#e6edf3'}}>🏷 Publish to eBay</div>
+                <div style={{fontSize:11,color:'#8b949e',marginTop:2}}>Create a live eBay listing directly from here</div>
+              </div>
+              <button style={{...S.btn,fontSize:12,padding:'5px 10px'}} onClick={()=>setShowPublish(p=>!p)}>
+                {showPublish?'▲ Hide':'▼ Show'}
+              </button>
+            </div>
+
+            {showPublish&&(
+              <div style={{display:'flex',flexDirection:'column',gap:12}}>
+
+                {/* Readiness checklist */}
+                <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                  {checks.map(c=>(
+                    <div key={c.label} style={{display:'flex',alignItems:'center',gap:8,fontSize:12}}>
+                      <span style={{color:c.ok?'#3fb950':'#f85149',fontSize:14}}>{c.ok?'✓':'✗'}</span>
+                      <span style={{color:c.ok?'#8b949e':'#e6edf3'}}>{c.label}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Shipping service */}
+                <div style={S.row2}>
+                  <div style={S.field}>
+                    <label style={S.lbl}>Shipping service</label>
+                    <select style={S.inp} value={shippingService} onChange={e=>setShippingService(e.target.value)}>
+                      {SHIPPING_SERVICES.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}
+                    </select>
+                  </div>
+                  <div style={S.field}>
+                    <label style={S.lbl}>Postage cost ({sym}) charged to buyer</label>
+                    <input style={S.inp} type="number" step="0.01" min="0" value={postageCost} onChange={e=>setPostageCost(e.target.value)} placeholder="0.00"/>
+                  </div>
+                </div>
+
+                {/* Postal code */}
+                <div style={S.field}>
+                  <label style={S.lbl}>Your postal code (for item location on eBay)</label>
+                  <input style={{...S.inp,maxWidth:160}} value={postalCode} onChange={e=>setPostalCode(e.target.value)} placeholder="e.g. LE11 1AA"/>
+                  <div style={{fontSize:10,color:'#6e7681',marginTop:2}}>Set once in ⚙️ Settings so you don't have to enter it each time</div>
+                </div>
+
+                {/* Publish result */}
+                {publishResult?.success&&(
+                  <div style={S.success}>
+                    <div style={{fontWeight:600,marginBottom:4}}>✓ Listed on eBay!</div>
+                    <div>Item ID: {publishResult.ebayItemId} · <a href={publishResult.listingUrl} target="_blank" rel="noreferrer" style={{color:'#3fb950'}}>View listing ↗</a></div>
                   </div>
                 )}
-                {!form.photos.length && (
-                  <div style={{background:'#21262d',borderRadius:6,height:80,display:'flex',alignItems:'center',justifyContent:'center',color:'#6e7681',fontSize:12,marginBottom:12}}>No photos yet — add photos above</div>
+                {publishResult?.error&&(
+                  <div style={S.error}>
+                    <div style={{fontWeight:600,marginBottom:4}}>✗ Listing failed</div>
+                    <div>{publishResult.error}</div>
+                  </div>
                 )}
-                <div style={{fontSize:17,fontWeight:700,color:'#e6edf3',marginBottom:6,lineHeight:1.3}}>{form.name||'Item name'}</div>
-                <div style={{display:'flex',gap:12,marginBottom:8,flexWrap:'wrap'}}>
-                  <span style={{fontSize:22,fontWeight:700,color:'#f0883e'}}>{sym}{priceNum.toFixed(2)}</span>
-                  {form.condition&&<span style={{fontSize:12,color:'#8b949e',alignSelf:'center'}}>{form.condition}</span>}
-                  {catName&&<span style={{fontSize:11,color:'#6e7681',alignSelf:'center'}}>{catName}</span>}
-                </div>
-                {previewDesc && (
-                  <div style={{fontSize:12,color:'#8b949e',lineHeight:1.7,whiteSpace:'pre-wrap',borderTop:'1px solid #30363d',paddingTop:8}}>{previewDesc}</div>
+
+                {/* Publish button */}
+                {!publishResult?.success&&(
+                  <button
+                    style={{...S.btnE,opacity:(!readyToPublish||publishing)?0.5:1,cursor:(!readyToPublish||publishing)?'not-allowed':'pointer'}}
+                    disabled={!readyToPublish||publishing}
+                    onClick={handlePublish}
+                  >
+                    {publishing?'Publishing…':'🏷 Publish listing on eBay'}
+                  </button>
                 )}
-                {!previewDesc && (
-                  <div style={{fontSize:11,color:'#6e7681',borderTop:'1px solid #30363d',paddingTop:8}}>No description — add a standard listing description in ⚙️ Settings</div>
+                {publishResult?.success&&(
+                  <button style={S.btn} onClick={onClose}>Close</button>
                 )}
               </div>
             )}
@@ -197,7 +329,10 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
 
         {/* Footer */}
         <div style={S.footer}>
-          <span style={{fontSize:11,color:'#6e7681',alignSelf:'center',marginRight:'auto'}}>Added {item.dateStr}{item.listedAt?` · Listed ${item.listedAt}`:''}</span>
+          <span style={{fontSize:11,color:'#6e7681',alignSelf:'center',marginRight:'auto'}}>
+            Added {item.dateStr}{item.listedAt?` · Listed ${item.listedAt}`:''}
+            {item.ebayItemId&&<> · <a href={item.ebayListingUrl} target="_blank" rel="noreferrer" style={{color:'#58a6ff'}}>View on eBay ↗</a></>}
+          </span>
           <button style={S.btn} onClick={onClose}>Cancel</button>
           <button style={S.btnP} onClick={handleSave}>Save changes</button>
         </div>
