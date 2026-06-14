@@ -163,3 +163,44 @@ export const SHIPPING_SERVICES = [
   { id:'UK_RoyalMailFirstClassRecorded',   label:'Royal Mail Signed For 1st Class',default:false },
   { id:'UK_CollectInPerson',               label:'Collect in Person',              default:false },
 ];
+
+// ── Trading card category IDs ─────────────────────────────────────────────────
+export const TCG_CATEGORY_IDS = new Set([
+  '261328','183461','19107','214','212','183454',
+  '261329','183466','183469','183468',
+]);
+
+// Category-aware condition ID lookup
+// TCG categories don't support condition 3000 on eBay UK
+export function getConditionIdForCategory(condition, categoryId) {
+  const isTCG = TCG_CATEGORY_IDS.has(String(categoryId || ''));
+
+  const TCG_MAP = {
+    'New':                           1000,
+    'Near Mint or Better (NM/M)':    2750,
+    'Lightly Played (LP)':           2750,
+    'Used — Like New':               2750,
+    'Moderately Played (MP)':        4000,
+    'Used — Very Good':              4000,
+    'Used — Good':                   4000,
+    'Heavily Played (HP)':           5000,
+    'Used — Acceptable':             5000,
+    'Damaged (D)':                   7000,
+    'For parts or not working':      7000,
+    'Seller refurbished':            2500,
+    'Open box':                      1500,
+  };
+
+  const STD_MAP = { ...CONDITION_IDS };
+
+  const map = isTCG ? TCG_MAP : STD_MAP;
+  return map[condition] ?? (isTCG ? 2750 : 3000);
+}
+
+// Default item specifics per category group
+export function getDefaultItemSpecifics(categoryId) {
+  if (TCG_CATEGORY_IDS.has(String(categoryId || ''))) {
+    return [{ name:'Sport', value:'Non-Sport Trading Cards' }];
+  }
+  return [];
+}
