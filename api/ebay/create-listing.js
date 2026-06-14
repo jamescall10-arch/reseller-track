@@ -71,17 +71,7 @@ async function getAccessToken(userId) {
 // ── XML helpers ───────────────────────────────────────────────────────────────
 const esc = str => String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-function buildReturnPolicyXml(policy) {
-  if (!policy?.enabled) return '';
-  return `
-    <ReturnPolicy>
-      <ReturnsAcceptedOption>${policy.accepted ? 'ReturnsAccepted' : 'ReturnsNotAccepted'}</ReturnsAcceptedOption>
-      ${policy.accepted ? `
-      <RefundOption>${policy.refund || 'MoneyBack'}</RefundOption>
-      <ReturnsWithinOption>${policy.within || 'Days_30'}</ReturnsWithinOption>
-      <ShippingCostPaidByOption>${policy.paidBy || 'Buyer'}</ShippingCostPaidByOption>` : ''}
-    </ReturnPolicy>`;
-}
+// Return policy is handled at eBay account level — not included in API calls (UK Managed Returns)
 
 function buildItemSpecificsXml(specifics) {
   if (!specifics?.length) return '';
@@ -112,7 +102,7 @@ function buildXml(item, accessToken) {
     item.description || '',
   ].filter(Boolean).join('\n\n') || String(item.name || '');
 
-  const returnPolicyXml   = buildReturnPolicyXml(item.returnPolicy);
+
   const itemSpecificsXml  = buildItemSpecificsXml(item.itemSpecifics);
 
   return `<?xml version="1.0" encoding="utf-8"?>
@@ -135,7 +125,6 @@ function buildXml(item, accessToken) {
     ${pictureXml}
     ${postalCode ? `<PostalCode>${postalCode}</PostalCode>` : ''}
     <Quantity>${qty}</Quantity>
-    ${returnPolicyXml}
     ${itemSpecificsXml}
     <ShippingDetails>
       <ShippingType>Flat</ShippingType>
