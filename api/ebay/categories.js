@@ -47,7 +47,7 @@ export default async function handler(req, res) {
           name:     a.localizedAspectName,
           required: c.aspectRequired === true,
           freeText: !(c.aspectMode||[]).includes('SELECTION_ONLY'),
-          values:   (a.aspectValues||[]).map(v=>v.localizedValue).filter(Boolean).slice(0,30),
+          values:   (a.aspectValues||[]).map(v=>v.localizedValue).filter(Boolean).slice(0,50),
         };
       }).sort((a,b)=>(b.required?1:0)-(a.required?1:0));
       return res.status(200).json({ specifics });
