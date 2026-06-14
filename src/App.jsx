@@ -7,6 +7,7 @@ import { isListingDeadZone, bundlePostageSavings, splitPostageAcrossItems, POSTA
 import { moneyReceived, feesFromInputs, saleFees } from './saleUtils.js';
 import Dashboard from './Dashboard.jsx';
 import { EBAY_CATEGORIES, EBAY_CONDITIONS } from './ebayData.js';
+import PhotoUpload from './PhotoUpload.jsx';
 
 // ── mobile detection ─────────────────────────────────────────────────────────
 const useIsMobile = () => {
@@ -222,6 +223,7 @@ export default function App(){
   const [addPrice,setAddPrice] = useState('');
   const [addQty,setAddQty]       = useState('1');
   const [addBuyCost,setAddBuyCost]       = useState('');
+  const [addPhotos,setAddPhotos]         = useState([]);
   const [addCondition,setAddCondition]     = useState('');
   const [addEbayCategory,setAddEbayCategory] = useState('');
   const [dupPrompt,setDupPrompt] = useState(null);
@@ -428,9 +430,9 @@ export default function App(){
     if(mergeId){
       setItems(p=>p.map(x=>x.id===mergeId?{...x,qty:iq(x)+qty}:x));
     }else{
-      setItems(p=>[{id:Date.now(),name,categoryId:catId,price,qty,buyCost:+buyCost.toFixed(2)||0,condition,ebayCategory,status:'stock',dateStr:todayEnGB()},...p]);
+      setItems(p=>[{id:Date.now(),name,categoryId:catId,price,qty,buyCost:+buyCost.toFixed(2)||0,condition,ebayCategory,photos:addPhotos||[],status:'stock',dateStr:todayEnGB()},...p]);
     }
-    setAddName('');setAddPrice('');setAddQty('1');setAddBuyCost('');setAddCondition('');setAddEbayCategory('');setDupPrompt(null);setShowAddItem(false);
+    setAddName('');setAddPrice('');setAddQty('1');setAddBuyCost('');setAddCondition('');setAddEbayCategory('');setAddPhotos([]);setDupPrompt(null);setShowAddItem(false);
   };
 
   const confirmSell=()=>{
@@ -1092,7 +1094,13 @@ export default function App(){
             </select>
             <div style={{fontSize:11,color:'#6e7681',marginTop:3}}>Used to pre-fill the category when listing on eBay.</div>
           </div>
-          <div style={S.mActs}><button style={S.mBtn} onClick={()=>setShowAddItem(false)}>Cancel</button><button style={S.mBtnP} onClick={tryAddItem}>Add item</button></div>
+          <div style={S.mActs}>
+              <div style={{...S.field,flex:'1 1 100%'}}>
+                <label style={S.fLbl}>Photos — optional (needed for eBay listing)</label>
+                <PhotoUpload photos={addPhotos} onChange={setAddPhotos}/>
+              </div>
+            </div>
+            <div style={S.mActs}><button style={S.mBtn} onClick={()=>setShowAddItem(false)}>Cancel</button><button style={S.mBtnP} onClick={tryAddItem}>Add item</button></div>
         </Modal>;
       })()}
 
