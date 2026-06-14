@@ -1339,6 +1339,7 @@ export default function App(){
           fulfillmentPolicyId={cfg.fulfillmentPolicyId||''}
           paymentPolicyId={cfg.paymentPolicyId||''}
           returnPolicyId={cfg.returnPolicyId||''}
+          fulfillmentPolicies={ebayPolicies?.fulfillment||[]}
         />
       )}
 
@@ -1362,13 +1363,13 @@ export default function App(){
               <div style={{background:'#0d1117',border:'1px solid #30363d',borderRadius:8,padding:'14px'}}>
                 <div style={{fontSize:12,fontWeight:600,marginBottom:8}}>eBay Listing Setup</div>
 
-                {/* Status + manage links */}
-                <div style={{fontSize:11,color:'#8b949e',marginBottom:10,lineHeight:1.7}}>
-                  The Inventory API requires business policies and an inventory location.
-                  <br/>
-                  <a href="https://www.ebay.co.uk/sh/selling/policies" target="_blank" rel="noreferrer" style={{color:'#58a6ff'}}>Manage / create policies on eBay ↗</a>
-                  {' · '}
-                  <a href="https://www.ebay.co.uk/sh/selling/policies" target="_blank" rel="noreferrer" style={{color:'#58a6ff'}}>Opt in to business policies ↗</a>
+                {/* Setup instructions */}
+                <div style={{background:'#161b22',border:'1px solid #30363d',borderRadius:6,padding:'10px 12px',fontSize:11,color:'#8b949e',marginBottom:10,lineHeight:1.8}}>
+                  <div style={{color:'#e6edf3',fontWeight:600,marginBottom:4}}>How to set up business policies on eBay:</div>
+                  <div>1. Go to <a href="https://www.ebay.co.uk/bp/manage" target="_blank" rel="noreferrer" style={{color:'#58a6ff'}}>ebay.co.uk/bp/manage ↗</a> (sign in if prompted)</div>
+                  <div>2. Create a <strong style={{color:'#e6edf3'}}>Postage</strong> policy for each shipping tier you use (e.g. "2nd Class", "Signed For", "Tracked 48")</div>
+                  <div>3. Also create one <strong style={{color:'#e6edf3'}}>Payment</strong> and one <strong style={{color:'#e6edf3'}}>Returns</strong> policy</div>
+                  <div>4. Come back here and click <strong style={{color:'#e6edf3'}}>↻ Refresh policies</strong> — all your policies will appear in the dropdowns below with the names you gave them</div>
                 </div>
 
                 <button style={{...S.mBtn,fontSize:11,padding:'4px 10px',marginBottom:10}} onClick={()=>{fetchEbayPolicies();fetchEbayLocation();}}>
@@ -1378,9 +1379,7 @@ export default function App(){
                 {/* Hint banners */}
                 {ebayPolicies?.hint==='not_opted_in'&&(
                   <div style={{background:'#2d1c00',border:'1px solid #9e6a03',borderRadius:6,padding:'8px 10px',fontSize:11,color:'#d29922',marginBottom:8}}>
-                    ⚠ No policies found. You may not be opted in to eBay Business Policies yet.{' '}
-                    <a href="https://www.ebay.co.uk/sh/selling/policies" target="_blank" rel="noreferrer" style={{color:'#d29922',textDecoration:'underline'}}>Opt in here ↗</a>
-                    {' '}then click Refresh policies.
+                    ⚠ No policies found. Follow the steps above to create them on eBay, then click ↻ Refresh policies.
                   </div>
                 )}
                 {ebayPolicies?.hint==='missing_scope'&&(
@@ -1405,10 +1404,10 @@ export default function App(){
                       <div key={cfgKey} style={{display:'flex',flexDirection:'column',gap:3}}>
                         <label style={{fontSize:10,color:'#8b949e'}}>{label}</label>
                         {items.length===0
-                          ? <div style={{fontSize:11,color:'#6e7681'}}>
-                              No policies found.{' '}
-                              <a href="https://www.ebay.co.uk/sh/selling/policies" target="_blank" rel="noreferrer" style={{color:'#58a6ff'}}>Create one on eBay ↗</a>
-                            </div>
+                         {items.length===0
+                           ? <div style={{fontSize:11,color:'#6e7681'}}>None found — follow the steps above to create one on eBay first.</div>
+                           
+                           
                           : <select style={{...S.fInp,fontSize:11}} value={cfg[cfgKey]||''} onChange={e=>setCfg(p=>({...p,[cfgKey]:e.target.value}))}>
                               <option value="">Select…</option>
                               {items.map(p=><option key={p[idKey]||p.name} value={p[idKey]||''}>{p.name}</option>)}
@@ -1440,11 +1439,9 @@ export default function App(){
                   </div>
                 )}
                 {!ebayPolicies&&(
+                {!ebayPolicies&&(
                   <div style={{fontSize:11,color:'#6e7681'}}>
-                    Click ↻ Refresh policies to load your eBay business policies.<br/>
-                    <span style={{color:'#8b949e'}}>If you see "No policies found", you may need to{' '}
-                    <a href="https://www.ebay.co.uk/sh/selling/policies" target="_blank" rel="noreferrer" style={{color:'#58a6ff'}}>opt in on eBay first ↗</a>
-                    {' '}or reconnect your eBay account.</span>
+                    Follow the steps above to create your policies on eBay, then click ↻ Refresh policies.
                   </div>
                 )}
               </div>
