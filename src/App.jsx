@@ -186,6 +186,8 @@ export default function App(){
   const [subStatus,setSubStatus]   = useState('active');
   const [subCustomerId,setSubCustomerId] = useState(null);
   const [showAccount,setShowAccount]     = useState(false);
+  const [ebayStatus,setEbayStatus]         = useState(null); // null | { connected, ebayUsername }
+  const [ebayMsg,setEbayMsg]               = useState('');
   const saveTimer              = useRef(null);
 
   // Nav
@@ -284,6 +286,34 @@ export default function App(){
       }catch(e){ console.error('Save error:',e); setSyncStatus('error'); }
     },1500);
   },[cfg,cats,items,sales,purchases,userId,ready,isSignedIn]);
+
+  // ── eBay connection status ────────────────────────────────────────────────────
+  const fetchEbayStatus = () => {
+    if(!userId) return;
+    fetch(`/api/ebay/status?userId=${encodeURIComponent(userId)}`)
+      .then(r=>r.json())
+      .then(d=>setEbayStatus(d))
+      .catch(()=>{});
+  };
+
+  useEffect(()=>{
+    if(!isSignedIn||!userId) return;
+    fetchEbayStatus();
+    // Listen for OAuth popup completion
+    const handler = e => {
+      if(e.data?.type==='EBAY_CONNECTED'){
+        fetchEbayStatus();
+        setEbayMsg('✓ eBay account connected!');
+        setTimeout(()=>setEbayMsg(''),5000);
+      }
+      if(e.data?.type==='EBAY_ERROR'){
+        setEbayMsg('⚠ eBay connection failed — please try again.');
+        setTimeout(()=>setEbayMsg(''),5000);
+      }
+    };
+    window.addEventListener('message', handler);
+    return ()=>window.removeEventListener('message', handler);
+  },[isSignedIn,userId]);
 
   // ── Fetch subscription status ──────────────────────────────────────────────
   useEffect(()=>{
@@ -1182,6 +1212,26 @@ export default function App(){
               <div style={{fontSize:14,fontWeight:600,color:subStatus==='active'?'#3fb950':subStatus==='cancelled'?'#d29922':'#f85149'}}>
                 {subStatus==='active'?'✅ Active':subStatus==='cancelled'?'⚠️ Cancelled — access until period ends':'❌ Expired'}
               </div>
+            </div>
+            {ebayMsg&&<div style={{background:ebayMsg.startsWith('✓')?'#1a2f1a':'#2d1c00',border:`1px solid ${ebayMsg.startsWith('✓')?'#238636':'#9e6a03'}`,borderRadius:6,padding:'8px 10px',fontSize:12,color:ebayMsg.startsWith('✓')?'#3fb950':'#d29922',marginBottom:4}}>{ebayMsg}</div>}
+            <div style={{background:'#21262d',borderRadius:8,padding:'12px 14px'}}>
+              <div style={{fontSize:11,color:'#8b949e',marginBottom:6}}>eBay account</div>
+              {ebayStatus?.connected
+                ? <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:600,color:'#3fb950'}}>✓ Connected</div>
+                      {ebayStatus.ebayUsername&&<div style={{fontSize:11,color:'#8b949e',marginTop:2}}>{ebayStatus.ebayUsername}</div>}
+                    </div>
+                    <button style={{...S.mBtn,fontSize:12,padding:'5px 10px'}} onClick={async()=>{
+                      const r=await fetch(`/api/ebay/auth?userId=${encodeURIComponent(userId)}`).then(x=>x.json());
+                      if(r.url) window.open(r.url,'ebay-oauth','width=600,height=700,scrollbars=yes');
+                    }}>Reconnect</button>
+                  </div>
+                : <button style={{...S.addBtn,width:'100%',justifyContent:'center',padding:'9px'}} onClick={async()=>{
+                    const r=await fetch(`/api/ebay/auth?userId=${encodeURIComponent(userId)}`).then(x=>x.json());
+                    if(r.url) window.open(r.url,'ebay-oauth','width=600,height=700,scrollbars=yes');
+                  }}>Connect eBay account</button>
+              }
             </div>
             <button style={{...S.mBtn,textAlign:'center',width:'100%',padding:'10px'}} onClick={handleOpenPortal}>
               🔗 Manage or cancel subscription
