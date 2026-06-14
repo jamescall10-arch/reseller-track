@@ -200,7 +200,11 @@ export function getConditionIdForCategory(condition, categoryId) {
 // Default item specifics per category group
 export function getDefaultItemSpecifics(categoryId) {
   if (TCG_CATEGORY_IDS.has(String(categoryId || ''))) {
-    return [{ name:'Sport', value:'Non-Sport Trading Cards' }];
+    return [
+      { name:'Sport',               value:'Non-Sport Trading Cards' },
+      { name:'Grade',               value:'Ungraded' },
+      { name:'Professional Grader', value:'Not Professionally Graded' },
+    ];
   }
   return [];
 }
