@@ -213,9 +213,12 @@ export function getDefaultItemSpecifics(categoryId) {
     ];
   }
   if (TCG_CATEGORY_IDS.has(catStr)) {
-    // Standard CCG category — just needs Sport
+    // Standard CCG category — Sport, Game, Grade, Professional Grader required by eBay UK
     return [
-      { name:'Sport', value:'Non-Sport Trading Cards' },
+      { name:'Sport',               value:'Non-Sport Trading Cards' },
+      { name:'Game',                value:'' },
+      { name:'Grade',               value:'' },
+      { name:'Professional Grader', value:'' },
     ];
   }
   return [];
