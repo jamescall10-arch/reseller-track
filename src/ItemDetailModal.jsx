@@ -63,7 +63,7 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
     if (!catId || !userId) return;
     setLoadingSpecifics(true);
     try {
-      const res  = await fetch('/api/ebay/category-specifics?categoryId='+catId);
+      const res  = await fetch('/api/ebay/categories?categoryId='+catId);
       const data = await res.json();
       if (data.specifics) {
         setCategorySpecifics(data.specifics);
@@ -157,7 +157,7 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
     setPublishing(true);
     setPublishResult(null);
     try {
-      const res = await fetch('/api/ebay/create-listing', {
+      const res = await fetch('/api/ebay/listing', {
         method: 'POST',
         headers: { 'Content-Type':'application/json' },
         body: JSON.stringify({
