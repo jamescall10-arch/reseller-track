@@ -223,3 +223,23 @@ export function getDefaultItemSpecifics(categoryId) {
   }
   return [];
 }
+
+// ── Inventory API condition enum (string constants replace numeric IDs) ────────
+export const CONDITION_ENUM = {
+  'New':                           'NEW',
+  'Open box':                      'NEW_OTHER',
+  'Seller refurbished':            'MANUFACTURER_REFURBISHED',
+  'Used — Like New':               'LIKE_NEW',
+  'Near Mint or Better (NM/M)':    'LIKE_NEW',
+  'Used — Very Good':              'USED_EXCELLENT',
+  'Lightly Played (LP)':           'USED_EXCELLENT',
+  'Used — Good':                   'USED_VERY_GOOD',
+  'Moderately Played (MP)':        'USED_GOOD',
+  'Used — Acceptable':             'USED_ACCEPTABLE',
+  'Heavily Played (HP)':           'USED_ACCEPTABLE',
+  'Damaged (D)':                   'FOR_PARTS_OR_NOT_WORKING',
+  'For parts or not working':      'FOR_PARTS_OR_NOT_WORKING',
+};
+
+export const getConditionEnum = (condition) =>
+  CONDITION_ENUM[condition] || 'USED_GOOD';
