@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import PhotoUpload from './PhotoUpload.jsx';
-import { EBAY_CONDITIONS, SHIPPING_SERVICES } from './ebayData.js';
+import { EBAY_CONDITIONS, SHIPPING_SERVICES, EBAY_CATEGORIES, getDefaultItemSpecifics } from './ebayData.js';
 import EbayCategoryPicker from './EbayCategoryPicker.jsx';
 import { isListingDeadZone } from './bundleUtils.js';
 
