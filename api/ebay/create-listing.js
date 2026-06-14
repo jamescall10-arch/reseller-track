@@ -1,190 +1,154 @@
-import { createClient } from '@supabase/supabase-js';
+/**
+ * Creates eBay listings using the Inventory REST API (not the deprecated Trading API XML).
+ * Flow: PUT inventory_item -> POST offer -> POST offer/{id}/publish
+ * Docs: https://developer.ebay.com/api-docs/sell/inventory/static/overview.html
+ */
+import { getUserToken, EBAY_API, MARKETPLACE_ID, ebayHeaders } from './_token.js';
 
-const supabase = createClient(
-  'https://hrpzkakrvgigtxtcyjzk.supabase.co',
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
-// Category-aware condition IDs (TCG categories don't support 3000 on eBay UK)
-const TCG_CATEGORIES = new Set([
-  '261328','183461','19107','214','212','183454',
-  '261329','183466','183469','183468',
-]);
-
-const TCG_CONDITION_IDS = {
-  'New':1000,'Near Mint or Better (NM/M)':2750,'Lightly Played (LP)':2750,
-  'Used — Like New':2750,'Moderately Played (MP)':4000,'Used — Very Good':4000,
-  'Used — Good':4000,'Heavily Played (HP)':5000,'Used — Acceptable':5000,
-  'Damaged (D)':7000,'For parts or not working':7000,'Seller refurbished':2500,
+const CONDITION_ENUM = {
+  'New':                           'NEW',
+  'Open box':                      'NEW_OTHER',
+  'Seller refurbished':            'MANUFACTURER_REFURBISHED',
+  'Used - Like New':               'LIKE_NEW',
+  'Used - Very Good':              'USED_EXCELLENT',
+  'Used - Good':                   'USED_VERY_GOOD',
+  'Used - Acceptable':             'USED_ACCEPTABLE',
+  'Used — Like New':               'LIKE_NEW',
+  'Near Mint or Better (NM/M)':    'LIKE_NEW',
+  'Used — Very Good':              'USED_EXCELLENT',
+  'Lightly Played (LP)':           'USED_EXCELLENT',
+  'Used — Good':                   'USED_VERY_GOOD',
+  'Moderately Played (MP)':        'USED_GOOD',
+  'Used — Acceptable':             'USED_ACCEPTABLE',
+  'Heavily Played (HP)':           'USED_ACCEPTABLE',
+  'Damaged (D)':                   'FOR_PARTS_OR_NOT_WORKING',
+  'For parts or not working':      'FOR_PARTS_OR_NOT_WORKING',
 };
 
-const STD_CONDITION_IDS = {
-  'New':1000,'Open box':1500,'Seller refurbished':2500,'Used — Like New':2750,
-  'Near Mint or Better (NM/M)':2750,'Used — Very Good':3000,'Lightly Played (LP)':3000,
-  'Used — Good':4000,'Moderately Played (MP)':4000,'Used — Acceptable':5000,
-  'Heavily Played (HP)':5000,'Damaged (D)':6000,'For parts or not working':7000,
-};
-
-function getConditionId(condition, categoryId) {
-  const isTCG = TCG_CATEGORIES.has(String(categoryId || ''));
-  const map   = isTCG ? TCG_CONDITION_IDS : STD_CONDITION_IDS;
-  return map[condition] ?? (isTCG ? 2750 : 3000);
+function aspectsToDict(specifics) {
+  const dict = {};
+  (specifics || []).forEach(s => {
+    if (s.name?.trim() && s.value?.trim()) dict[s.name.trim()] = [s.value.trim()];
+  });
+  return dict;
 }
 
-// ── Token management ──────────────────────────────────────────────────────────
-async function getAccessToken(userId) {
-  const { data, error } = await supabase
-    .from('ebay_tokens')
-    .select('access_token, refresh_token, expires_at')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (error || !data) throw new Error('No eBay account connected. Please connect in My Account.');
-
-  const needsRefresh = Date.now() >= new Date(data.expires_at).getTime() - 5 * 60 * 1000;
-  if (!needsRefresh) return data.access_token;
-
-  const creds  = Buffer.from(`${process.env.EBAY_APP_ID}:${process.env.EBAY_CERT_ID}`).toString('base64');
-  const res    = await fetch('https://api.ebay.com/identity/v1/oauth2/token', {
-    method: 'POST',
-    headers: { 'Content-Type':'application/x-www-form-urlencoded', 'Authorization':`Basic ${creds}` },
-    body: new URLSearchParams({
-      grant_type:    'refresh_token',
-      refresh_token: data.refresh_token,
-      scope: 'https://api.ebay.com/oauth/api_scope https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.account',
+async function ensureLocation(token, postalCode) {
+  const key   = 'primary';
+  const check = await fetch(`${EBAY_API}/sell/inventory/v1/location/${key}`, { headers: ebayHeaders(token) });
+  if (check.ok) return key;
+  if (!postalCode?.trim()) throw new Error('Please set your postal code in Settings before publishing to eBay.');
+  const create = await fetch(`${EBAY_API}/sell/inventory/v1/location/${key}`, {
+    method:  'POST',
+    headers: ebayHeaders(token),
+    body:    JSON.stringify({
+      location: { address: { postalCode: postalCode.trim().toUpperCase(), country: 'GB' } },
+      merchantLocationStatus: 'ENABLED',
+      name: 'My selling location',
+      merchantLocationTypes: ['WAREHOUSE'],
     }),
   });
-
-  if (!res.ok) throw new Error(`eBay token refresh failed: ${await res.text()}`);
-  const tokens = await res.json();
-  const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
-
-  await supabase.from('ebay_tokens').update({
-    access_token: tokens.access_token,
-    expires_at:   expiresAt,
-    updated_at:   new Date().toISOString(),
-  }).eq('user_id', userId);
-
-  return tokens.access_token;
+  if (!create.ok) {
+    const e = await create.json().catch(() => ({}));
+    throw new Error('Could not create inventory location: ' + ((e.errors||[]).map(x=>x.message).join(', ')||JSON.stringify(e)));
+  }
+  return key;
 }
 
-// ── XML helpers ───────────────────────────────────────────────────────────────
-const esc = str => String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-
-// Return policy is handled at eBay account level — not included in API calls (UK Managed Returns)
-
-function buildItemSpecificsXml(specifics) {
-  if (!specifics?.length) return '';
-  const lines = specifics
-    .filter(s => s.name?.trim() && s.value?.trim())
-    .map(s => `<NameValueList><Name>${esc(s.name)}</Name><Value>${esc(s.value)}</Value></NameValueList>`)
-    .join('');
-  return lines ? `<ItemSpecifics>${lines}</ItemSpecifics>` : '';
+function parseErrors(data) {
+  return (data.errors || [])
+    .map(e => e.message + (e.parameters?.length ? ' ('+e.parameters.map(p=>p.value).join(', ')+')' : ''))
+    .join(' | ') || JSON.stringify(data).slice(0,400);
 }
 
-function buildXml(item, accessToken) {
-  const conditionId     = getConditionId(item.condition, item.ebayCategory);
-  const categoryId      = item.ebayCategory || '1281';
-  const qty             = Math.max(1, Math.floor(Number(item.qty)) || 1);
-  const price           = Number(item.price).toFixed(2);
-  const postageCost     = Number(item.postageCost  || 0).toFixed(2);
-  const shippingService = item.shippingService || 'UK_RoyalMailSecondClassStandard';
-  const postalCode      = esc(item.postalCode  || '');
-  const title           = esc(String(item.name || '').slice(0, 80));
-  const photos          = (item.photos || []).slice(0, 12);
-
-  const pictureXml = photos.length
-    ? `<PictureDetails>${photos.map(u=>`<PictureURL>${esc(u)}</PictureURL>`).join('')}</PictureDetails>`
-    : '';
-
-  const description = [
-    item.condition ? `Condition: ${item.condition}` : '',
-    item.description || '',
-  ].filter(Boolean).join('\n\n') || String(item.name || '');
-
-
-  const itemSpecificsXml  = buildItemSpecificsXml(item.itemSpecifics);
-
-  return `<?xml version="1.0" encoding="utf-8"?>
-<AddItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">
-  <RequesterCredentials><eBayAuthToken>${accessToken}</eBayAuthToken></RequesterCredentials>
-  <ErrorLanguage>en_GB</ErrorLanguage>
-  <WarningLevel>High</WarningLevel>
-  <Item>
-    <Title>${title}</Title>
-    <Description><![CDATA[${description}]]></Description>
-    <PrimaryCategory><CategoryID>${categoryId}</CategoryID></PrimaryCategory>
-    <StartPrice>${price}</StartPrice>
-    <CategoryMappingAllowed>true</CategoryMappingAllowed>
-    <ConditionID>${conditionId}</ConditionID>
-    <Country>GB</Country>
-    <Currency>GBP</Currency>
-    <DispatchTimeMax>3</DispatchTimeMax>
-    <ListingDuration>GTC</ListingDuration>
-    <ListingType>FixedPriceItem</ListingType>
-    ${pictureXml}
-    ${postalCode ? `<PostalCode>${postalCode}</PostalCode>` : ''}
-    <Quantity>${qty}</Quantity>
-    ${itemSpecificsXml}
-    <ShippingDetails>
-      <ShippingType>Flat</ShippingType>
-      <ShippingServiceOptions>
-        <ShippingServicePriority>1</ShippingServicePriority>
-        <ShippingService>${shippingService}</ShippingService>
-        <ShippingServiceCost>${postageCost}</ShippingServiceCost>
-      </ShippingServiceOptions>
-    </ShippingDetails>
-    <Site>UK</Site>
-  </Item>
-</AddItemRequest>`;
-}
-
-// ── Handler ───────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error:'Method not allowed' });
-
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   const { userId, item } = req.body || {};
-  if (!userId || !item) return res.status(400).json({ error:'Missing userId or item' });
+  if (!userId || !item) return res.status(400).json({ error: 'Missing userId or item' });
+
+  if (!item.fulfillmentPolicyId) return res.status(400).json({ error: 'No fulfillment policy selected. Go to My Account to set one up.' });
+  if (!item.paymentPolicyId)     return res.status(400).json({ error: 'No payment policy selected. Go to My Account to set one up.' });
+  if (!item.returnPolicyId)      return res.status(400).json({ error: 'No return policy selected. Go to My Account to set one up.' });
 
   try {
-    const accessToken = await getAccessToken(userId);
-    const xml = buildXml(item, accessToken);
+    const token       = await getUserToken(userId);
+    const sku         = item.ebaySku || ('rt-' + item.id + '-' + Date.now());
+    const qty         = Math.max(1, Math.floor(Number(item.qty)) || 1);
+    const condition   = CONDITION_ENUM[item.condition] || 'USED_GOOD';
+    const aspects     = aspectsToDict(item.itemSpecifics);
+    const description = (item.description || item.name || '').trim();
+    const images      = (item.photos || []).slice(0, 24).filter(Boolean);
+    const locationKey = await ensureLocation(token, item.postalCode);
 
-    const ebayRes = await fetch('https://api.ebay.com/ws/api.dll', {
-      method: 'POST',
-      headers: {
-        'X-EBAY-API-CALL-NAME':           'AddItem',
-        'X-EBAY-API-SITEID':              '3',
-        'X-EBAY-API-APP-NAME':            process.env.EBAY_APP_ID,
-        'X-EBAY-API-DEV-NAME':            process.env.EBAY_DEV_ID,
-        'X-EBAY-API-CERT-NAME':           process.env.EBAY_CERT_ID,
-        'X-EBAY-API-COMPATIBILITY-LEVEL': '1113',
-        'Content-Type':                   'text/xml',
-      },
-      body: xml,
-    });
-
-    const text = await ebayRes.text();
-    const ack  = text.match(/<Ack>(.*?)<\/Ack>/)?.[1];
-
-    if (ack === 'Success' || ack === 'Warning') {
-      const ebayItemId = text.match(/<ItemID>(\d+)<\/ItemID>/)?.[1];
-      console.log(`[create-listing] Listed ${ebayItemId} for ${userId}: ${item.name}`);
-      return res.status(200).json({
-        success:     true,
-        ebayItemId,
-        listingUrl:  `https://www.ebay.co.uk/itm/${ebayItemId}`,
-        hasWarnings: ack === 'Warning',
-      });
+    // Step 1: PUT inventory item
+    const putRes = await fetch(
+      EBAY_API + '/sell/inventory/v1/inventory_item/' + encodeURIComponent(sku),
+      {
+        method:  'PUT',
+        headers: ebayHeaders(token),
+        body:    JSON.stringify({
+          availability: { shipToLocationAvailability: { quantity: qty } },
+          condition,
+          conditionDescription: item.condition || '',
+          product: {
+            title:       (item.name || '').slice(0, 80),
+            description: description,
+            imageUrls:   images.length ? images : undefined,
+            aspects:     Object.keys(aspects).length ? aspects : undefined,
+          },
+        }),
+      }
+    );
+    if (putRes.status >= 400) {
+      const e = await putRes.json().catch(() => ({}));
+      throw new Error('Inventory item: ' + parseErrors(e));
     }
 
-    const errors = [...text.matchAll(/<ShortMessage>(.*?)<\/ShortMessage>/g)]
-      .map(m => m[1]).join(' | ');
-    console.error(`[create-listing] eBay error for ${userId}: ${errors}`);
-    return res.status(400).json({ error: errors || 'eBay rejected the listing' });
+    // Step 2: POST offer
+    const offerRes = await fetch(EBAY_API + '/sell/inventory/v1/offer', {
+      method:  'POST',
+      headers: ebayHeaders(token),
+      body:    JSON.stringify({
+        sku,
+        marketplaceId:    MARKETPLACE_ID,
+        format:           'FIXED_PRICE',
+        availableQuantity: qty,
+        categoryId:       item.ebayCategory || undefined,
+        listingDescription: description,
+        listingPolicies:  {
+          fulfillmentPolicyId: item.fulfillmentPolicyId,
+          paymentPolicyId:     item.paymentPolicyId,
+          returnPolicyId:      item.returnPolicyId,
+        },
+        pricingSummary: { price: { value: Number(item.price).toFixed(2), currency: 'GBP' } },
+        merchantLocationKey: locationKey,
+        includeCatalogProductDetails: false,
+      }),
+    });
+    if (!offerRes.ok) {
+      const e = await offerRes.json().catch(() => ({}));
+      throw new Error('Offer creation: ' + parseErrors(e));
+    }
+    const { offerId } = await offerRes.json();
+
+    // Step 3: Publish offer
+    const pubRes = await fetch(EBAY_API + '/sell/inventory/v1/offer/' + offerId + '/publish', {
+      method: 'POST', headers: ebayHeaders(token), body: '{}',
+    });
+    if (!pubRes.ok) {
+      const e = await pubRes.json().catch(() => ({}));
+      throw new Error('Publish: ' + parseErrors(e));
+    }
+    const { listingId } = await pubRes.json();
+    console.log('[create-listing] Listed', listingId, 'sku', sku, 'user', userId);
+
+    return res.status(200).json({
+      success: true, listingId, offerId, sku,
+      listingUrl: 'https://www.ebay.co.uk/itm/' + listingId,
+    });
 
   } catch (e) {
-    console.error('[create-listing] Error:', e);
-    return res.status(500).json({ error: e.message || 'Internal server error' });
+    console.error('[create-listing]', e.message);
+    return res.status(500).json({ error: e.message });
   }
 }
