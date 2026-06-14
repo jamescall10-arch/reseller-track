@@ -336,7 +336,7 @@ export default function App(){
   // ── eBay connection status ────────────────────────────────────────────────────
   const fetchEbayStatus = () => {
     if(!userId) return;
-    fetch(`/api/ebay/status?userId=${encodeURIComponent(userId)}`)
+    fetch(`/api/ebay/auth?action=status&userId=${encodeURIComponent(userId)}`)
       .then(r=>r.json())
       .then(d=>setEbayStatus(d))
       .catch(()=>{});
@@ -363,17 +363,17 @@ export default function App(){
 
   const fetchEbayPolicies = () => {
     if(!userId) return;
-    fetch('/api/ebay/business-policies?userId='+encodeURIComponent(userId))
+    fetch('/api/ebay/setup?userId='+encodeURIComponent(userId))
       .then(r=>r.json()).then(d=>setEbayPolicies(d)).catch(()=>{});
   };
   const fetchEbayLocation = () => {
     if(!userId) return;
-    fetch('/api/ebay/location?userId='+encodeURIComponent(userId))
+    fetch('/api/ebay/setup?userId='+encodeURIComponent(userId))
       .then(r=>r.json()).then(d=>setEbayLocation((d.locations||[]).length>0)).catch(()=>{});
   };
   const createEbayLocation = async () => {
     if(!cfg.postalCode) { alert('Set your postal code in Settings first'); return; }
-    const r = await fetch('/api/ebay/location',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({userId,postalCode:cfg.postalCode}) });
+    const r = await fetch('/api/ebay/setup',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({userId,postalCode:cfg.postalCode}) });
     const d = await r.json();
     if(d.merchantLocationKey) { setEbayLocation(true); setEbayMsg('✓ Inventory location created'); setTimeout(()=>setEbayMsg(''),4000); }
     else { setEbayMsg('✗ '+d.error); setTimeout(()=>setEbayMsg(''),6000); }
@@ -383,7 +383,7 @@ export default function App(){
   const syncEbayOrders = async () => {
     setEbaySyncState({loading:true,msg:''});
     try {
-      const r    = await fetch('/api/ebay/sync-orders?userId='+encodeURIComponent(userId));
+      const r    = await fetch('/api/ebay/sync?userId='+encodeURIComponent(userId));
       const data = await r.json();
       if(!r.ok) throw new Error(data.error||'Sync failed');
       const orders = data.orders||[];
@@ -1408,12 +1408,12 @@ export default function App(){
                       {ebayStatus.ebayUsername&&<div style={{fontSize:11,color:'#8b949e',marginTop:2}}>{ebayStatus.ebayUsername}</div>}
                     </div>
                     <button style={{...S.mBtn,fontSize:12,padding:'5px 10px'}} onClick={async()=>{
-                      const r=await fetch(`/api/ebay/auth?userId=${encodeURIComponent(userId)}`).then(x=>x.json());
+                      const r=await fetch(`/api/ebay/auth?action=url&userId=${encodeURIComponent(userId)}`).then(x=>x.json());
                       if(r.url) window.open(r.url,'ebay-oauth','width=600,height=700,scrollbars=yes');
                     }}>Reconnect</button>
                   </div>
                 : <button style={{...S.addBtn,width:'100%',justifyContent:'center',padding:'9px'}} onClick={async()=>{
-                    const r=await fetch(`/api/ebay/auth?userId=${encodeURIComponent(userId)}`).then(x=>x.json());
+                    const r=await fetch(`/api/ebay/auth?action=url&userId=${encodeURIComponent(userId)}`).then(x=>x.json());
                     if(r.url) window.open(r.url,'ebay-oauth','width=600,height=700,scrollbars=yes');
                   }}>Connect eBay account</button>
               }
