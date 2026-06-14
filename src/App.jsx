@@ -1360,43 +1360,93 @@ export default function App(){
             {/* eBay Listing Setup — policies + location */}
             {ebayStatus?.connected&&(
               <div style={{background:'#0d1117',border:'1px solid #30363d',borderRadius:8,padding:'14px'}}>
-                <div style={{fontSize:12,fontWeight:600,marginBottom:10}}>eBay Listing Setup</div>
-                <div style={{fontSize:11,color:'#8b949e',marginBottom:10,lineHeight:1.5}}>
-                  The Inventory API requires business policies. Select the ones you want to use for all listings.
-                  {' '}<a href="https://www.ebay.co.uk/sh/set/shippping" target="_blank" rel="noreferrer" style={{color:'#58a6ff'}}>Manage on eBay ↗</a>
+                <div style={{fontSize:12,fontWeight:600,marginBottom:8}}>eBay Listing Setup</div>
+
+                {/* Status + manage links */}
+                <div style={{fontSize:11,color:'#8b949e',marginBottom:10,lineHeight:1.7}}>
+                  The Inventory API requires business policies and an inventory location.
+                  <br/>
+                  <a href="https://www.ebay.co.uk/sh/selling/policies" target="_blank" rel="noreferrer" style={{color:'#58a6ff'}}>Manage / create policies on eBay ↗</a>
+                  {' · '}
+                  <a href="https://www.ebay.co.uk/sh/selling/policies" target="_blank" rel="noreferrer" style={{color:'#58a6ff'}}>Opt in to business policies ↗</a>
                 </div>
-                <button style={{...S.mBtn,fontSize:11,padding:'4px 10px',marginBottom:10}} onClick={()=>{fetchEbayPolicies();fetchEbayLocation();}}>↻ Refresh policies</button>
+
+                <button style={{...S.mBtn,fontSize:11,padding:'4px 10px',marginBottom:10}} onClick={()=>{fetchEbayPolicies();fetchEbayLocation();}}>
+                  ↻ Refresh policies
+                </button>
+
+                {/* Hint banners */}
+                {ebayPolicies?.hint==='not_opted_in'&&(
+                  <div style={{background:'#2d1c00',border:'1px solid #9e6a03',borderRadius:6,padding:'8px 10px',fontSize:11,color:'#d29922',marginBottom:8}}>
+                    ⚠ No policies found. You may not be opted in to eBay Business Policies yet.{' '}
+                    <a href="https://www.ebay.co.uk/sh/selling/policies" target="_blank" rel="noreferrer" style={{color:'#d29922',textDecoration:'underline'}}>Opt in here ↗</a>
+                    {' '}then click Refresh policies.
+                  </div>
+                )}
+                {ebayPolicies?.hint==='missing_scope'&&(
+                  <div style={{background:'#2d1c00',border:'1px solid #9e6a03',borderRadius:6,padding:'8px 10px',fontSize:11,color:'#d29922',marginBottom:8}}>
+                    ⚠ Permission denied. Please disconnect and reconnect your eBay account (we added new permissions since your last connection).
+                  </div>
+                )}
+                {ebayPolicies?.hint==='error'&&(
+                  <div style={{background:'#2d1c00',border:'1px solid #9e6a03',borderRadius:6,padding:'8px 10px',fontSize:11,color:'#d29922',marginBottom:8}}>
+                    ⚠ Error fetching policies: {ebayPolicies.detail}
+                  </div>
+                )}
+
+                {/* Policy selectors */}
                 {ebayPolicies&&(
                   <div style={{display:'flex',flexDirection:'column',gap:8}}>
                     {[
-                      {label:'Fulfillment policy (shipping)',key:'fulfillmentPolicyId',items:ebayPolicies.fulfillment||[]},
-                      {label:'Payment policy',key:'paymentPolicyId',items:ebayPolicies.payment||[]},
-                      {label:'Return policy',key:'returnPolicyId',items:ebayPolicies.returns||[]},
-                    ].map(({label,key,items})=>(
-                      <div key={key} style={{display:'flex',flexDirection:'column',gap:3}}>
+                      {label:'Fulfillment (shipping) policy', cfgKey:'fulfillmentPolicyId', idKey:'fulfillmentPolicyId', items:ebayPolicies.fulfillment||[]},
+                      {label:'Payment policy',                cfgKey:'paymentPolicyId',     idKey:'paymentPolicyId',     items:ebayPolicies.payment||[]},
+                      {label:'Return policy',                 cfgKey:'returnPolicyId',      idKey:'returnPolicyId',      items:ebayPolicies.returns||[]},
+                    ].map(({label,cfgKey,idKey,items})=>(
+                      <div key={cfgKey} style={{display:'flex',flexDirection:'column',gap:3}}>
                         <label style={{fontSize:10,color:'#8b949e'}}>{label}</label>
                         {items.length===0
-                          ? <div style={{fontSize:11,color:'#f85149'}}>None found — create one on eBay first</div>
-                          : <select style={{...S.fInp,fontSize:11}} value={cfg[key]||''} onChange={e=>setCfg(p=>({...p,[key]:e.target.value}))}>
+                          ? <div style={{fontSize:11,color:'#6e7681'}}>
+                              No policies found.{' '}
+                              <a href="https://www.ebay.co.uk/sh/selling/policies" target="_blank" rel="noreferrer" style={{color:'#58a6ff'}}>Create one on eBay ↗</a>
+                            </div>
+                          : <select style={{...S.fInp,fontSize:11}} value={cfg[cfgKey]||''} onChange={e=>setCfg(p=>({...p,[cfgKey]:e.target.value}))}>
                               <option value="">Select…</option>
-                              {items.map(p=><option key={p[key.replace('Id','').replace('Policy','PolicyId')]||p.fulfillmentPolicyId||p.paymentPolicyId||p.returnPolicyId||p.name} value={p.fulfillmentPolicyId||p.paymentPolicyId||p.returnPolicyId}>{p.name}</option>)}
+                              {items.map(p=><option key={p[idKey]||p.name} value={p[idKey]||''}>{p.name}</option>)}
                             </select>
                         }
                       </div>
                     ))}
-                    <div style={{display:'flex',alignItems:'center',gap:8,marginTop:4}}>
+
+                    {/* Inventory location */}
+                    <div style={{display:'flex',alignItems:'center',gap:8,marginTop:4,flexWrap:'wrap'}}>
                       <span style={{fontSize:11,color:'#8b949e'}}>Inventory location:</span>
-                      {ebayLocation===null?<span style={{fontSize:11,color:'#8b949e'}}>Not checked</span>
-                        :ebayLocation?<span style={{fontSize:11,color:'#3fb950'}}>✓ Set up</span>
-                        :<button style={{...S.mBtn,fontSize:11,padding:'3px 8px',color:'#f0883e',borderColor:'#f0883e'}} onClick={createEbayLocation}>Create location</button>}
+                      {ebayLocation===null
+                        ? <span style={{fontSize:11,color:'#8b949e'}}>Not checked</span>
+                        : ebayLocation
+                          ? <span style={{fontSize:11,color:'#3fb950'}}>✓ Set up</span>
+                          : <button style={{...S.mBtn,fontSize:11,padding:'3px 8px',color:'#f0883e',borderColor:'#f0883e'}} onClick={createEbayLocation}>
+                              + Create location (uses your postal code from Settings)
+                            </button>
+                      }
                     </div>
+
+                    {/* Overall readiness */}
                     {(cfg.fulfillmentPolicyId&&cfg.paymentPolicyId&&cfg.returnPolicyId&&ebayLocation)
-                      ?<div style={{fontSize:11,color:'#3fb950',marginTop:4}}>✓ Ready to publish listings</div>
-                      :<div style={{fontSize:11,color:'#d29922',marginTop:4}}>Select all three policies and create a location to enable listing</div>
+                      ? <div style={{fontSize:11,color:'#3fb950',marginTop:4}}>✓ Ready to publish listings</div>
+                      : <div style={{fontSize:11,color:'#d29922',marginTop:4}}>
+                          Select all three policies and create a location to enable listing
+                        </div>
                     }
                   </div>
                 )}
-                {!ebayPolicies&&<div style={{fontSize:11,color:'#6e7681'}}>Click Refresh policies to load your eBay business policies</div>}
+                {!ebayPolicies&&(
+                  <div style={{fontSize:11,color:'#6e7681'}}>
+                    Click ↻ Refresh policies to load your eBay business policies.<br/>
+                    <span style={{color:'#8b949e'}}>If you see "No policies found", you may need to{' '}
+                    <a href="https://www.ebay.co.uk/sh/selling/policies" target="_blank" rel="noreferrer" style={{color:'#58a6ff'}}>opt in on eBay first ↗</a>
+                    {' '}or reconnect your eBay account.</span>
+                  </div>
+                )}
               </div>
             )}
             <div style={{background:'#21262d',borderRadius:8,padding:'12px 14px'}}>
