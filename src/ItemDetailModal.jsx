@@ -26,7 +26,7 @@ const S = {
   badge:   (color) => ({ display:'inline-block',background:`${color}15`,color,border:`1px solid ${color}40`,borderRadius:20,padding:'2px 10px',fontSize:11,fontWeight:600,flexShrink:0 }),
 };
 
-export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees, ebayConnected, userId, returnPolicy, onSave, onClose, todayEnGB }){
+export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees, ebayConnected, userId, returnPolicy, fulfillmentPolicyId, paymentPolicyId, returnPolicyId, onSave, onClose, todayEnGB }){
   const [form, setForm] = useState({
     name:         item.name         || '',
     price:        String(item.price || ''),
@@ -63,7 +63,7 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
     if (!catId || !userId) return;
     setLoadingSpecifics(true);
     try {
-      const res  = await fetch('/api/ebay/category-specifics?categoryId='+catId+'&userId='+encodeURIComponent(userId));
+      const res  = await fetch('/api/ebay/category-specifics?categoryId='+catId);
       const data = await res.json();
       if (data.specifics) {
         setCategorySpecifics(data.specifics);
@@ -90,6 +90,8 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
   const [showPublish,     setShowPublish]      = useState(false);
   const [shippingService, setShippingService]  = useState(item.shippingService || (SHIPPING_SERVICES.find(s=>s.default)?.id || SHIPPING_SERVICES[0].id));
   const [postageCost,     setPostageCost]      = useState(String(cfg?.postage || '1.00'));
+  const [sellerPostage,   setSellerPostage]    = useState(String(item.sellerPostageCost || cfg?.postage || '1.00'));
+  const [conditionDesc,   setConditionDesc]    = useState(item.conditionDescription || '');
   const [postalCode,      setPostalCode]       = useState(item.postalCode || cfg?.postalCode || '');
   const [publishing,      setPublishing]       = useState(false);
   const [publishResult,   setPublishResult]    = useState(null);
@@ -127,6 +129,7 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
     { label:'Condition selected',               ok: !!form.condition },
     { label:'eBay category selected',           ok: !!form.ebayCategory },
     { label:'Postal code set',                  ok: !!postalCode.trim() },
+    { label:'Fulfillment, payment & return policies set', ok: !!(fulfillmentPolicyId&&paymentPolicyId&&returnPolicyId) },
     { label:'eBay account connected',           ok: !!ebayConnected },
     { label:'Item specifics complete',          ok: itemSpecifics.every(s => s.name?.trim() && s.value?.trim()) },
   ];
@@ -191,8 +194,11 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
           itemSpecifics,
           ebayItemId:     data.ebayItemId,
           ebayListingUrl: data.listingUrl,
-          status:         'listed',
-          listedAt:       todayEnGB ? todayEnGB() : new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}),
+          status:           'listed',
+          listedAt:         todayEnGB ? todayEnGB() : new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}),
+          ebaySku:          data.sku,
+          ebayOfferId:      data.offerId,
+          sellerPostageCost: parseFloat(sellerPostage)||0,
         }, true);
       } else {
         setPublishResult({ success:false, error: data.error || 'Unknown error' });
@@ -402,6 +408,19 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
                   </div>
                 </div>
 
+                {/* Seller postage cost */}
+                <div style={S.row2}>
+                  <div style={S.field}>
+                    <label style={S.lbl}>Your actual postage cost ({sym})</label>
+                    <input style={S.inp} type="number" step="0.01" min="0" value={sellerPostage} onChange={e=>setSellerPostage(e.target.value)} placeholder="e.g. 0.91"/>
+                    <div style={{fontSize:10,color:'#6e7681',marginTop:2}}>What YOU pay to post it — even if buyer gets free postage. Used to calculate your true profit.</div>
+                  </div>
+                  <div style={S.field}>
+                    <label style={S.lbl}>Condition description (optional)</label>
+                    <input style={S.inp} value={conditionDesc} onChange={e=>setConditionDesc(e.target.value)} placeholder="e.g. Light scratch on corner"/>
+                  </div>
+                </div>
+
                 {/* Postal code */}
                 <div style={S.field}>
                   <label style={S.lbl}>Your postal code (item location shown on eBay)</label>
@@ -409,10 +428,12 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
                   <div style={{fontSize:10,color:'#6e7681',marginTop:2}}>Set once in ⚙️ Settings so you don't have to enter it each time</div>
                 </div>
 
-                {/* Return policy status */}
+                {/* Policy status */}
                 <div style={{fontSize:11,color:'#8b949e'}}>
-                  Return policy: <strong style={{color:returnPolicy?.enabled?'#e6edf3':'#6e7681'}}>{returnPolicy?.enabled?`Enabled — ${returnPolicy.accepted?'accepted, '+returnPolicy.within.replace('Days_','')+ ' days, paid by '+returnPolicy.paidBy:'not accepted'}`:'Not included (using your eBay account default)'}</strong>
-                  {' — '}<span style={{color:'#58a6ff'}}>change in ⚙️ Settings</span>
+                  Policies: {(fulfillmentPolicyId&&paymentPolicyId&&returnPolicyId)
+                    ? <span style={{color:'#3fb950'}}>✓ Configured</span>
+                    : <span style={{color:'#f85149'}}>✗ Not configured — go to My Account → eBay Setup</span>
+                  }
                 </div>
 
                 {/* Publish result */}
