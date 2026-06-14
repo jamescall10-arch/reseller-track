@@ -8,6 +8,7 @@ import { moneyReceived, feesFromInputs, saleFees } from './saleUtils.js';
 import Dashboard from './Dashboard.jsx';
 import { EBAY_CATEGORIES, EBAY_CONDITIONS } from './ebayData.js';
 import PhotoUpload from './PhotoUpload.jsx';
+import ItemDetailModal from './ItemDetailModal.jsx';
 
 // ── mobile detection ─────────────────────────────────────────────────────────
 const useIsMobile = () => {
@@ -206,6 +207,7 @@ export default function App(){
   const [lstSort,setLstSort]         = useState('price-desc');
   const [lstSel,setLstSel]           = useState([]);
   const [invSel,setInvSel]           = useState([]);
+  const [detailItem,setDetailItem]   = useState(null);
   const [bundleSell,setBundleSell]   = useState(null);
   const [bundlePost,setBundlePost]   = useState('');
 
@@ -547,6 +549,10 @@ export default function App(){
     setInvSel([]);
   };
 
+  const saveDetailItem = (updated) => {
+    setItems(p => p.map(x => x.id === updated.id ? updated : x));
+  };
+
   const handleOpenPortal = async () => {
     const fallback = 'https://app.lemonsqueezy.com/my-orders';
     const url = subCustomerId
@@ -713,7 +719,7 @@ export default function App(){
                     <div style={mRow}>
                       <div style={{display:'flex',alignItems:'flex-start',gap:8,flex:1,paddingRight:8}}>
                         <input type="checkbox" style={{...S.chk,marginTop:2,flexShrink:0}} checked={isInvSel(it.id)} onChange={()=>toggleInvSel(it.id)}/>
-                        <div style={mName}>{it.name}</div>
+                        <div style={{...mName,color:'#58a6ff',cursor:'pointer'}} onClick={()=>setDetailItem(it)}>{it.name}</div>
                       </div>
                       <div style={{fontSize:20,fontWeight:700,color:'#f0883e',flexShrink:0}}>{fmt(it.price)}</div>
                     </div>
@@ -747,7 +753,7 @@ export default function App(){
                   {filteredItems.map((it,i)=>(
                     <tr key={it.id} style={{background:isInvSel(it.id)?'#1c2f4a':i%2===0?'transparent':'#161b22'}}>
                       <td style={{...S.td,textAlign:'center'}}><input type="checkbox" style={S.chk} checked={isInvSel(it.id)} onChange={()=>toggleInvSel(it.id)}/></td>
-                      <td style={S.td}><span style={{display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={it.name}>{it.name}</span>{it.condition&&<span style={{fontSize:10,color:'#8b949e',display:'block'}}>{it.condition}</span>}</td>
+                      <td style={{...S.td,cursor:'pointer'}} onClick={()=>setDetailItem(it)}><span style={{display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'#58a6ff'}} title={it.name}>{it.name}</span>{it.condition&&<span style={{fontSize:10,color:'#8b949e',display:'block'}}>{it.condition}</span>}</td>
                       <td style={S.td}><QtyCell value={iq(it)} onChange={n=>setItems(p=>p.map(x=>x.id===it.id?{...x,qty:n}:x))}/></td>
                       <td style={{...S.td,color:'#8b949e',fontSize:11}}>{it.dateStr}</td>
                       <td style={{...S.td,textAlign:'right',color:'#f0883e',fontWeight:600}}>{fmt(it.price)}</td>
@@ -805,7 +811,7 @@ export default function App(){
                           <div key={it.id} style={{...mCard,background:isSel(curLstCat,it.id)?'#1c2f4a':'#161b22'}}>
                             <div style={mRow}>
                               <div style={{flex:1,paddingRight:8}}>
-                                <div style={{fontWeight:600,fontSize:14,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{it.name}</div>
+                                <div style={{fontWeight:600,fontSize:14,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'#58a6ff',cursor:'pointer'}} onClick={()=>setDetailItem(it)}>{it.name}</div>
                                 <div style={mSub}>Listed {it.listedAt||it.dateStr||'—'}{it.buyCost>0?' · cost '+fmt(it.buyCost):''}</div>
                                 <div style={{fontSize:11,marginTop:2}}><span style={{color:'#8b949e'}}>Profit est: </span><span style={{color:(it.price-calcFees(it.price)-(it.buyCost||0))>=0?'#3fb950':'#f85149',fontWeight:600}}>{fmt(it.price-calcFees(it.price)-(it.buyCost||0))}</span></div>
                               </div>
@@ -842,7 +848,7 @@ export default function App(){
                           {filteredListed.map((it,i)=>(
                             <tr key={it.id} style={{background:isSel(curLstCat,it.id)?'#1c2f4a':i%2===0?'transparent':'#161b22'}}>
                               <td style={{...S.td,textAlign:'center'}}><input type="checkbox" style={S.chk} checked={isSel(curLstCat,it.id)} onChange={()=>toggleSel(curLstCat,it)}/></td>
-                              <td style={S.td}><span style={{display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={it.name}>{it.name}</span>{it.condition&&<span style={{fontSize:10,color:'#8b949e',display:'block'}}>{it.condition}</span>}</td>
+                              <td style={{...S.td,cursor:'pointer'}} onClick={()=>setDetailItem(it)}><span style={{display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'#58a6ff'}} title={it.name}>{it.name}</span>{it.condition&&<span style={{fontSize:10,color:'#8b949e',display:'block'}}>{it.condition}</span>}</td>
                               <td style={S.td}><QtyCell value={iq(it)} onChange={n=>setItems(p=>p.map(x=>x.id===it.id?{...x,qty:n}:x))}/></td>
                               <td style={{...S.td,color:'#8b949e',fontSize:11}}>{it.listedAt||it.dateStr||'—'}</td>
                               <td style={{...S.td,textAlign:'right',color:'#f0883e',fontWeight:600}}>{fmt(it.price)}</td>
@@ -1206,6 +1212,19 @@ export default function App(){
           <p style={{fontSize:11,color:'#6e7681',marginTop:8}}>Removes all existing stock entries and replaces with a single total. Keeps other expense types.</p>
         </div>}
       </Modal>}
+
+      {/* ITEM DETAIL */}
+      {detailItem&&(
+        <ItemDetailModal
+          item={detailItem}
+          cats={cats}
+          sym={sym}
+          cfg={cfg}
+          calcFees={calcFees}
+          onSave={saveDetailItem}
+          onClose={()=>setDetailItem(null)}
+        />
+      )}
 
       {/* MY ACCOUNT */}
       {showAccount&&(
