@@ -1,15 +1,16 @@
 export const EBAY_CATEGORIES = [
-  { group:'Trading Cards', items:[
-    { id:'261328', name:'Pokémon Individual Cards' },
-    { id:'183461', name:'Yu-Gi-Oh! Individual Cards' },
-    { id:'19107',  name:'Magic: The Gathering Cards' },
-    { id:'214',    name:'Football Trading Cards' },
-    { id:'212',    name:'Sports Trading Cards (General)' },
-    { id:'183454', name:'Trading Card Games (General)' },
+  { group:'CCG & Trading Cards (Collectables)', items:[
+    { id:'183454', name:'CCG Individual Cards (Pokémon, Yu-Gi-Oh, MTG etc.) ← use this' },
+    { id:'183456', name:'CCG Sealed Packs' },
+    { id:'183457', name:'CCG Sealed Boxes' },
+    { id:'183458', name:'CCG Sealed Decks & Kits' },
+    { id:'183459', name:'CCG Mixed Card Lots' },
+    { id:'183460', name:'CCG Sets' },
+    { id:'183462', name:'CCG Supplies & Accessories' },
+    { id:'214',    name:'Sports Trading Cards (Football, Cricket etc.)' },
+    { id:'212',    name:'Non-Sport Trading Cards' },
+    { id:'261328', name:'Pokémon Individual Cards (graded/PSA only — requires Grade fields)' },
     { id:'261329', name:'Pokémon Sealed Products/Packs' },
-    { id:'183466', name:'Cardfight!! Vanguard' },
-    { id:'183469', name:'Dragon Ball Super Cards' },
-    { id:'183468', name:'Digimon Cards' },
   ]},
   { group:'Video Games', items:[
     { id:'146944', name:'PlayStation 5 Games' },
@@ -166,8 +167,8 @@ export const SHIPPING_SERVICES = [
 
 // ── Trading card category IDs ─────────────────────────────────────────────────
 export const TCG_CATEGORY_IDS = new Set([
-  '261328','183461','19107','214','212','183454',
-  '261329','183466','183469','183468',
+  '183454','183456','183457','183458','183459','183460',
+  '261328','261329','212',
 ]);
 
 // Category-aware condition ID lookup
@@ -198,12 +199,23 @@ export function getConditionIdForCategory(condition, categoryId) {
 }
 
 // Default item specifics per category group
+// These are the grade-required categories (professionally graded cards section)
+const GRADED_CARD_CATEGORIES = new Set(['261328']);
+
 export function getDefaultItemSpecifics(categoryId) {
-  if (TCG_CATEGORY_IDS.has(String(categoryId || ''))) {
+  const catStr = String(categoryId || '');
+  if (GRADED_CARD_CATEGORIES.has(catStr)) {
+    // Graded card categories require Grade and Professional Grader
     return [
       { name:'Sport',               value:'Non-Sport Trading Cards' },
       { name:'Grade',               value:'Ungraded' },
       { name:'Professional Grader', value:'Not Professionally Graded' },
+    ];
+  }
+  if (TCG_CATEGORY_IDS.has(catStr)) {
+    // Standard CCG category — just needs Sport
+    return [
+      { name:'Sport', value:'Non-Sport Trading Cards' },
     ];
   }
   return [];
