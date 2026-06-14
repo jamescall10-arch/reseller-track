@@ -37,7 +37,7 @@ const findDuplicate = (name,catId,items) => {
 
 const DEFAULTS = {
   businessName:'My eBay Store', currency:'£', baseFee:15,
-  postage:1.00, initialSpend:0, taxCountry:'UK', listingDescription:'',
+  postage:1.00, initialSpend:0, taxCountry:'UK', listingDescription:'', postalCode:'',
 };
 const SORT_OPTS = [['price-desc','Price ↓'],['price-asc','Price ↑'],['name','Name A–Z']];
 
@@ -153,6 +153,11 @@ function SettingsModal({cfg,onChange,onSave,onClose,feeLabel,effectiveFeeRate,sa
         </div>
         <div style={S.field}><label style={S.fLbl}>Stock spend before using this app</label><input style={S.fInp} type="number" step="0.01" min="0" value={cfg.initialSpend||''} onChange={e=>f('initialSpend',e.target.value)} placeholder="0.00"/><div style={{fontSize:11,color:'#8b949e',marginTop:3}}>One-time entry — adds to your total spend.</div></div>
         <div style={S.field}><label style={S.fLbl}>Tax country</label><select style={{...S.fInp}} value={cfg.taxCountry||'UK'} onChange={e=>f('taxCountry',e.target.value)}><option value="UK">🇬🇧 United Kingdom</option><option value="Other">Other / International</option></select></div>
+        <div style={S.field}>
+          <label style={S.fLbl}>Your postal code</label>
+          <input style={{...S.fInp,maxWidth:160}} value={cfg.postalCode||''} onChange={e=>f('postalCode',e.target.value)} placeholder="e.g. LE11 1AA"/>
+          <div style={{fontSize:11,color:'#6e7681',marginTop:3}}>Used as item location on eBay listings.</div>
+        </div>
         <div style={{...S.field,gridColumn:'1/-1'}}>
           <label style={S.fLbl}>Standard listing description</label>
           <textarea style={{...S.fInp,minHeight:100,resize:'vertical',lineHeight:1.5}} value={cfg.listingDescription||''} onChange={e=>f('listingDescription',e.target.value)} placeholder="e.g. Fast dispatch · Secure packaging · Combined postage available · Please check my other listings!"/>
@@ -549,8 +554,9 @@ export default function App(){
     setInvSel([]);
   };
 
-  const saveDetailItem = (updated) => {
+  const saveDetailItem = (updated, keepOpen=false) => {
     setItems(p => p.map(x => x.id === updated.id ? updated : x));
+    if (!keepOpen) setDetailItem(null);
   };
 
   const handleOpenPortal = async () => {
@@ -1223,6 +1229,9 @@ export default function App(){
           calcFees={calcFees}
           onSave={saveDetailItem}
           onClose={()=>setDetailItem(null)}
+          ebayConnected={ebayStatus?.connected}
+          userId={userId}
+          todayEnGB={todayEnGB}
         />
       )}
 
