@@ -1404,10 +1404,7 @@ export default function App(){
                       <div key={cfgKey} style={{display:'flex',flexDirection:'column',gap:3}}>
                         <label style={{fontSize:10,color:'#8b949e'}}>{label}</label>
                         {items.length===0
-                         {items.length===0
                            ? <div style={{fontSize:11,color:'#6e7681'}}>None found — follow the steps above to create one on eBay first.</div>
-                           
-                           
                           : <select style={{...S.fInp,fontSize:11}} value={cfg[cfgKey]||''} onChange={e=>setCfg(p=>({...p,[cfgKey]:e.target.value}))}>
                               <option value="">Select…</option>
                               {items.map(p=><option key={p[idKey]||p.name} value={p[idKey]||''}>{p.name}</option>)}
