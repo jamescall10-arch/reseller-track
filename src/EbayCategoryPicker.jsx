@@ -21,7 +21,7 @@ export default function EbayCategoryPicker({ value, valuePath, onChange, userId,
   // Auto-suggest when modal opens using item name
   useEffect(() => {
     if (didAutoSuggest.current) return;
-    if (itemName?.trim() && userId) {
+    if (itemName?.trim()) {
       didAutoSuggest.current = true;
       setQuery(itemName);
       doSearch(itemName);
@@ -30,18 +30,25 @@ export default function EbayCategoryPicker({ value, valuePath, onChange, userId,
 
   const doSearch = async (q) => {
     const trimmed = q?.trim();
-    if (!trimmed || !userId) return;
+    if (!trimmed) return;
     setLoading(true); setError(''); setSuggestions([]);
     try {
-      const res  = await fetch('/api/ebay/suggest-category', {
+      const res  = await fetch('/api/ebay/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: trimmed, userId }),
+        body: JSON.stringify({ query: trimmed }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setSuggestions(data.suggestions || []);
-      if (!data.suggestions?.length) setError('No suggestions found — try different keywords or enter the category ID manually below.');
+      if (!data.suggestions?.length) {
+        if (data.debug) {
+          setError(`No suggestions found. eBay response: Ack=${data.debug.ack||'unknown'} ${data.debug.errMsg?'Error: '+data.debug.errMsg:''} — try different keywords or use manual category ID below.`);
+          console.log('[EbayCategoryPicker] eBay raw response preview:', data.debug.preview);
+        } else {
+          setError('No suggestions found — try different keywords or enter the category ID manually below.');
+        }
+      }
     } catch(e) {
       setError(e.message);
     } finally {
@@ -54,7 +61,7 @@ export default function EbayCategoryPicker({ value, valuePath, onChange, userId,
     setSuggestions([]);
     if (onSpecificsLoaded && userId) {
       try {
-        const res  = await fetch(`/api/ebay/category-specifics?categoryId=${id}&userId=${encodeURIComponent(userId)}`);
+        const res  = await fetch(`/api/ebay/categories?categoryId=${id}`);
         const data = await res.json();
         if (data.specifics) onSpecificsLoaded(data.specifics);
       } catch { /* ignore — specifics can be loaded manually */ }
