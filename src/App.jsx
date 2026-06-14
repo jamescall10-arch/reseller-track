@@ -39,6 +39,7 @@ const DEFAULTS = {
   businessName:'My eBay Store', currency:'£', baseFee:15,
   postage:1.00, initialSpend:0, taxCountry:'UK', listingDescription:'', postalCode:'',
   returnPolicy:{ enabled:false, accepted:true, refund:'MoneyBack', within:'Days_30', paidBy:'Buyer' },
+  fulfillmentPolicyId:'', paymentPolicyId:'', returnPolicyId:'',
 };
 const SORT_OPTS = [['price-desc','Price ↓'],['price-asc','Price ↑'],['name','Name A–Z']];
 
@@ -228,6 +229,9 @@ export default function App(){
   const [showAccount,setShowAccount]     = useState(false);
   const [ebayStatus,setEbayStatus]         = useState(null); // null | { connected, ebayUsername }
   const [ebayMsg,setEbayMsg]               = useState('');
+  const [ebayPolicies,setEbayPolicies]     = useState(null);
+  const [ebayLocation,setEbayLocation]     = useState(null);
+  const [ebaySyncState,setEbaySyncState]   = useState({loading:false,msg:''});
   const saveTimer              = useRef(null);
 
   // Nav
@@ -357,6 +361,72 @@ export default function App(){
     return ()=>window.removeEventListener('message', handler);
   },[isSignedIn,userId]);
 
+  const fetchEbayPolicies = () => {
+    if(!userId) return;
+    fetch('/api/ebay/business-policies?userId='+encodeURIComponent(userId))
+      .then(r=>r.json()).then(d=>setEbayPolicies(d)).catch(()=>{});
+  };
+  const fetchEbayLocation = () => {
+    if(!userId) return;
+    fetch('/api/ebay/location?userId='+encodeURIComponent(userId))
+      .then(r=>r.json()).then(d=>setEbayLocation((d.locations||[]).length>0)).catch(()=>{});
+  };
+  const createEbayLocation = async () => {
+    if(!cfg.postalCode) { alert('Set your postal code in Settings first'); return; }
+    const r = await fetch('/api/ebay/location',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({userId,postalCode:cfg.postalCode}) });
+    const d = await r.json();
+    if(d.merchantLocationKey) { setEbayLocation(true); setEbayMsg('✓ Inventory location created'); setTimeout(()=>setEbayMsg(''),4000); }
+    else { setEbayMsg('✗ '+d.error); setTimeout(()=>setEbayMsg(''),6000); }
+  };
+
+  // ── Sync eBay orders ─────────────────────────────────────────────────────────
+  const syncEbayOrders = async () => {
+    setEbaySyncState({loading:true,msg:''});
+    try {
+      const r    = await fetch('/api/ebay/sync-orders?userId='+encodeURIComponent(userId));
+      const data = await r.json();
+      if(!r.ok) throw new Error(data.error||'Sync failed');
+      const orders = data.orders||[];
+      let synced = 0;
+      const now = Date.now();
+      orders.forEach((order,idx) => {
+        const matched = items.find(it =>
+          it.status==='listed' && (
+            (order.ebayItemId && it.ebayItemId===order.ebayItemId) ||
+            (order.ebaySku    && it.ebaySku===order.ebaySku)
+          )
+        );
+        if(!matched) return;
+        const sellerPost = matched.sellerPostageCost||cfg.postage||0;
+        const sale = {
+          id:          now+idx,
+          itemId:      matched.id,
+          itemName:    matched.name,
+          categoryId:  matched.categoryId,
+          listedPrice: matched.price,
+          soldPrice:   order.soldPrice,
+          ebayFees:    order.ebayFees,
+          moneyIn:     order.moneyIn,
+          postage:     sellerPost,
+          buyCost:     matched.buyCost||0,
+          profit:      +(order.moneyIn-sellerPost).toFixed(2),
+          qty:         order.qty||1,
+          date:        order.saleDate,
+          ebayOrderId: order.orderId,
+          fromEbaySync:true,
+          restore:     {itemId:matched.id,name:matched.name,price:matched.price,qty:order.qty||1,status:'listed',dateStr:matched.dateStr,categoryId:matched.categoryId},
+        };
+        setSales(p=>[sale,...p.filter(s=>s.ebayOrderId!==order.orderId)]);
+        setItems(p=>p.map(x=>x.id===matched.id?{...x,status:'sold'}:x));
+        synced++;
+      });
+      setEbaySyncState({loading:false,msg:synced>0?'✓ '+synced+' sale'+(synced!==1?'s':'')+' synced from eBay':'No new sales found on eBay'});
+    } catch(e) {
+      setEbaySyncState({loading:false,msg:'✗ '+e.message});
+    }
+    setTimeout(()=>setEbaySyncState(s=>({...s,msg:''})),6000);
+  };
+
   // ── Fetch subscription status ──────────────────────────────────────────────
   useEffect(()=>{
     if(!isSignedIn||!user) return;
@@ -470,7 +540,7 @@ export default function App(){
     if(mergeId){
       setItems(p=>p.map(x=>x.id===mergeId?{...x,qty:iq(x)+qty}:x));
     }else{
-      setItems(p=>[{id:Date.now(),name,categoryId:catId,price,qty,buyCost:+buyCost.toFixed(2)||0,condition,ebayCategory,photos:addPhotos||[],status:'stock',dateStr:todayEnGB()},...p]);
+      setItems(p=>[{id:Date.now(),name,categoryId:catId,price,qty,buyCost:+buyCost.toFixed(2)||0,condition,ebayCategory,photos:addPhotos||[],sellerPostageCost:+(cfg.postage||0),status:'stock',dateStr:todayEnGB()},...p]);
     }
     setAddName('');setAddPrice('');setAddQty('1');setAddBuyCost('');setAddCondition('');setAddEbayCategory('');setAddPhotos([]);setDupPrompt(null);setShowAddItem(false);
   };
@@ -1266,6 +1336,9 @@ export default function App(){
           userId={userId}
           todayEnGB={todayEnGB}
           returnPolicy={cfg.returnPolicy}
+          fulfillmentPolicyId={cfg.fulfillmentPolicyId||''}
+          paymentPolicyId={cfg.paymentPolicyId||''}
+          returnPolicyId={cfg.returnPolicyId||''}
         />
       )}
 
@@ -1284,6 +1357,48 @@ export default function App(){
               </div>
             </div>
             {ebayMsg&&<div style={{background:ebayMsg.startsWith('✓')?'#1a2f1a':'#2d1c00',border:`1px solid ${ebayMsg.startsWith('✓')?'#238636':'#9e6a03'}`,borderRadius:6,padding:'8px 10px',fontSize:12,color:ebayMsg.startsWith('✓')?'#3fb950':'#d29922',marginBottom:4}}>{ebayMsg}</div>}
+            {/* eBay Listing Setup — policies + location */}
+            {ebayStatus?.connected&&(
+              <div style={{background:'#0d1117',border:'1px solid #30363d',borderRadius:8,padding:'14px'}}>
+                <div style={{fontSize:12,fontWeight:600,marginBottom:10}}>eBay Listing Setup</div>
+                <div style={{fontSize:11,color:'#8b949e',marginBottom:10,lineHeight:1.5}}>
+                  The Inventory API requires business policies. Select the ones you want to use for all listings.
+                  {' '}<a href="https://www.ebay.co.uk/sh/set/shippping" target="_blank" rel="noreferrer" style={{color:'#58a6ff'}}>Manage on eBay ↗</a>
+                </div>
+                <button style={{...S.mBtn,fontSize:11,padding:'4px 10px',marginBottom:10}} onClick={()=>{fetchEbayPolicies();fetchEbayLocation();}}>↻ Refresh policies</button>
+                {ebayPolicies&&(
+                  <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                    {[
+                      {label:'Fulfillment policy (shipping)',key:'fulfillmentPolicyId',items:ebayPolicies.fulfillment||[]},
+                      {label:'Payment policy',key:'paymentPolicyId',items:ebayPolicies.payment||[]},
+                      {label:'Return policy',key:'returnPolicyId',items:ebayPolicies.returns||[]},
+                    ].map(({label,key,items})=>(
+                      <div key={key} style={{display:'flex',flexDirection:'column',gap:3}}>
+                        <label style={{fontSize:10,color:'#8b949e'}}>{label}</label>
+                        {items.length===0
+                          ? <div style={{fontSize:11,color:'#f85149'}}>None found — create one on eBay first</div>
+                          : <select style={{...S.fInp,fontSize:11}} value={cfg[key]||''} onChange={e=>setCfg(p=>({...p,[key]:e.target.value}))}>
+                              <option value="">Select…</option>
+                              {items.map(p=><option key={p[key.replace('Id','').replace('Policy','PolicyId')]||p.fulfillmentPolicyId||p.paymentPolicyId||p.returnPolicyId||p.name} value={p.fulfillmentPolicyId||p.paymentPolicyId||p.returnPolicyId}>{p.name}</option>)}
+                            </select>
+                        }
+                      </div>
+                    ))}
+                    <div style={{display:'flex',alignItems:'center',gap:8,marginTop:4}}>
+                      <span style={{fontSize:11,color:'#8b949e'}}>Inventory location:</span>
+                      {ebayLocation===null?<span style={{fontSize:11,color:'#8b949e'}}>Not checked</span>
+                        :ebayLocation?<span style={{fontSize:11,color:'#3fb950'}}>✓ Set up</span>
+                        :<button style={{...S.mBtn,fontSize:11,padding:'3px 8px',color:'#f0883e',borderColor:'#f0883e'}} onClick={createEbayLocation}>Create location</button>}
+                    </div>
+                    {(cfg.fulfillmentPolicyId&&cfg.paymentPolicyId&&cfg.returnPolicyId&&ebayLocation)
+                      ?<div style={{fontSize:11,color:'#3fb950',marginTop:4}}>✓ Ready to publish listings</div>
+                      :<div style={{fontSize:11,color:'#d29922',marginTop:4}}>Select all three policies and create a location to enable listing</div>
+                    }
+                  </div>
+                )}
+                {!ebayPolicies&&<div style={{fontSize:11,color:'#6e7681'}}>Click Refresh policies to load your eBay business policies</div>}
+              </div>
+            )}
             <div style={{background:'#21262d',borderRadius:8,padding:'12px 14px'}}>
               <div style={{fontSize:11,color:'#8b949e',marginBottom:6}}>eBay account</div>
               {ebayStatus?.connected
