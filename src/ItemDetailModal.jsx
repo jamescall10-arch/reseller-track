@@ -43,6 +43,29 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
       : getDefaultItemSpecifics(item.ebayCategory)
   );
 
+  const [categorySpecifics, setCategorySpecifics] = useState(null);
+  const [loadingSpecifics,  setLoadingSpecifics]  = useState(false);
+
+  const fetchCategorySpecifics = async (catId) => {
+    if (!catId || !userId) return;
+    setLoadingSpecifics(true);
+    try {
+      const res  = await fetch('/api/ebay/category-specifics?categoryId='+catId+'&userId='+encodeURIComponent(userId));
+      const data = await res.json();
+      if (data.specifics) {
+        setCategorySpecifics(data.specifics);
+        setItemSpecifics(prev => {
+          const existing = new Set(prev.map(s => s.name.toLowerCase()));
+          const toAdd = data.specifics
+            .filter(s => s.required && !existing.has(s.name.toLowerCase()))
+            .map(s => ({ name: s.name, value: s.values[0] || '' }));
+          return toAdd.length ? [...prev, ...toAdd] : prev;
+        });
+      }
+    } catch(e) { console.error('category-specifics error:', e); }
+    finally { setLoadingSpecifics(false); }
+  };
+
   const [showPreview,     setShowPreview]     = useState(false);
   const [showPublish,     setShowPublish]      = useState(false);
   const [shippingService, setShippingService]  = useState(item.shippingService || (SHIPPING_SERVICES.find(s=>s.default)?.id || SHIPPING_SERVICES[0].id));
@@ -58,9 +81,9 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
     f('ebayCategory', newCatId);
     const currentNames = new Set(itemSpecifics.map(s => s.name));
     const defaults = getDefaultItemSpecifics(newCatId);
-    // Add any missing defaults
     const toAdd = defaults.filter(d => !currentNames.has(d.name));
     if (toAdd.length) setItemSpecifics(p => [...p, ...toAdd]);
+    fetchCategorySpecifics(newCatId);
   };
 
   const addSpecific = () => setItemSpecifics(p => [...p, { name:'', value:'' }]);
@@ -256,13 +279,28 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
             {itemSpecifics.length===0&&(
               <div style={{fontSize:11,color:'#6e7681',padding:'6px 0'}}>No item specifics yet. Some categories require these — e.g. Pokémon cards need Sport: Non-Sport Trading Cards</div>
             )}
-            {itemSpecifics.map((s,i)=>(
-              <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:6,marginBottom:4}}>
-                <input style={S.inp} value={s.name} onChange={e=>updateSpecific(i,'name',e.target.value)} placeholder="Name (e.g. Sport)"/>
-                <input style={S.inp} value={s.value} onChange={e=>updateSpecific(i,'value',e.target.value)} placeholder="Value (e.g. Non-Sport Trading Cards)"/>
-                <button type="button" style={{...S.btnSm,color:'#f85149',padding:'4px 8px'}} onClick={()=>removeSpecific(i)}>✕</button>
-              </div>
-            ))}
+            {loadingSpecifics&&<div style={{fontSize:11,color:'#8b949e',padding:'4px 0'}}>Loading required fields from eBay...</div>}
+            {itemSpecifics.map((s,i)=>{
+              const spec = categorySpecifics?.find(cs=>cs.name.toLowerCase()===s.name.toLowerCase());
+              const hasValues = spec?.values?.length>0;
+              const isRequired = spec?.required;
+              return(
+                <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:6,marginBottom:4}}>
+                  <div style={{position:'relative'}}>
+                    <input style={{...S.inp,borderColor:isRequired?'#d29922':'#30363d'}} value={s.name} onChange={e=>updateSpecific(i,'name',e.target.value)} placeholder="Name (e.g. Sport)"/>
+                    {isRequired&&<span style={{position:'absolute',right:6,top:'50%',transform:'translateY(-50%)',fontSize:9,color:'#d29922'}}>REQ</span>}
+                  </div>
+                  {hasValues&&!spec.freeText
+                    ? <select style={S.inp} value={s.value} onChange={e=>updateSpecific(i,'value',e.target.value)}>
+                        <option value="">Select...</option>
+                        {spec.values.map(v=><option key={v} value={v}>{v}</option>)}
+                      </select>
+                    : <input style={S.inp} value={s.value} onChange={e=>updateSpecific(i,'value',e.target.value)} placeholder={hasValues?spec.values[0]:'Value'}/>
+                  }
+                  <button type="button" style={{...S.btnSm,color:'#f85149',padding:'4px 8px'}} onClick={()=>removeSpecific(i)}>X</button>
+                </div>
+              );
+            })}
           </div>
 
           {/* eBay listing preview */}
