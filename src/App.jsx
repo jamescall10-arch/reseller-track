@@ -38,6 +38,7 @@ const findDuplicate = (name,catId,items) => {
 const DEFAULTS = {
   businessName:'My eBay Store', currency:'£', baseFee:15,
   postage:1.00, initialSpend:0, taxCountry:'UK', listingDescription:'', postalCode:'',
+  returnPolicy:{ enabled:false, accepted:true, refund:'MoneyBack', within:'Days_30', paidBy:'Buyer' },
 };
 const SORT_OPTS = [['price-desc','Price ↓'],['price-asc','Price ↑'],['name','Name A–Z']];
 
@@ -157,6 +158,38 @@ function SettingsModal({cfg,onChange,onSave,onClose,feeLabel,effectiveFeeRate,sa
           <label style={S.fLbl}>Your postal code</label>
           <input style={{...S.fInp,maxWidth:160}} value={cfg.postalCode||''} onChange={e=>f('postalCode',e.target.value)} placeholder="e.g. LE11 1AA"/>
           <div style={{fontSize:11,color:'#6e7681',marginTop:3}}>Used as item location on eBay listings.</div>
+        </div>
+        <div style={{...S.field,gridColumn:'1/-1'}}>
+          <label style={S.fLbl}>eBay listing return policy</label>
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
+            <input type="checkbox" checked={!!(cfg.returnPolicy?.enabled)} onChange={e=>f('returnPolicy',{...(cfg.returnPolicy||{}),enabled:e.target.checked})} id="rpEnabled"/>
+            <label htmlFor="rpEnabled" style={{fontSize:12,color:'#e6edf3',cursor:'pointer'}}>Include return policy in listings (disable if you get "Return Policy input not applicable" errors — eBay Managed Returns users should leave this off)</label>
+          </div>
+          {cfg.returnPolicy?.enabled&&(
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginTop:4}}>
+              <div style={S.field}>
+                <label style={S.fLbl}>Returns accepted</label>
+                <select style={S.fInp} value={cfg.returnPolicy?.accepted?'yes':'no'} onChange={e=>f('returnPolicy',{...cfg.returnPolicy,accepted:e.target.value==='yes'})}>
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                </select>
+              </div>
+              <div style={S.field}>
+                <label style={S.fLbl}>Returns within</label>
+                <select style={S.fInp} value={cfg.returnPolicy?.within||'Days_30'} onChange={e=>f('returnPolicy',{...cfg.returnPolicy,within:e.target.value})}>
+                  <option value="Days_30">30 days</option>
+                  <option value="Days_60">60 days</option>
+                </select>
+              </div>
+              <div style={S.field}>
+                <label style={S.fLbl}>Who pays return postage</label>
+                <select style={S.fInp} value={cfg.returnPolicy?.paidBy||'Buyer'} onChange={e=>f('returnPolicy',{...cfg.returnPolicy,paidBy:e.target.value})}>
+                  <option value="Buyer">Buyer</option>
+                  <option value="Seller">Seller</option>
+                </select>
+              </div>
+            </div>
+          )}
         </div>
         <div style={{...S.field,gridColumn:'1/-1'}}>
           <label style={S.fLbl}>Standard listing description</label>
@@ -1232,6 +1265,7 @@ export default function App(){
           ebayConnected={ebayStatus?.connected}
           userId={userId}
           todayEnGB={todayEnGB}
+          returnPolicy={cfg.returnPolicy}
         />
       )}
 
