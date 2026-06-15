@@ -33,13 +33,13 @@ const ASPECT_FALLBACKS = {
 // Aspects that are auto-filled and hidden from the visible list (users never need to change them)
 const AUTO_HIDDEN_ASPECTS = new Set(['Sport']);
 
-// If Grade is Ungraded, auto-set Professional Grader and hide it
-function shouldHideAspect(name, itemSpecifics) {
+// Aspects managed by graded/ungraded panel or auto-filled — hide from visible specifics list
+const TCG_PANEL_ASPECTS = new Set(['Grade', 'Professional Grader', 'Certification Number']);
+
+function shouldHideAspect(name, itemSpecifics, categoryId) {
   if (AUTO_HIDDEN_ASPECTS.has(name)) return true;
-  if (name === 'Professional Grader') {
-    const grade = itemSpecifics?.find(s => s.name === 'Grade');
-    return !grade || grade.value === 'Ungraded' || grade.value === '';
-  }
+  // For TCG categories: Grade/Professional Grader are managed by the graded/ungraded panel
+  if (TCG_PANEL_ASPECTS.has(name) && TCG_CATS_MODAL.has(String(categoryId || ''))) return true;
   return false;
 }
 import { isListingDeadZone } from './bundleUtils.js';
@@ -124,17 +124,10 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
           return;
         }
 
-        if (s.name === 'Grade') {
-          value = 'Ungraded'; // default to Ungraded for home sellers
-          toAdd.push({ name: s.name, value });
-          return;
-        }
-
-        if (s.name === 'Professional Grader') {
-          // Auto-add but hidden when Grade=Ungraded; value = Not Professionally Graded
-          value = allValues.find(v => v.toLowerCase().includes('not pro')) || 'Not Professionally Graded';
-          toAdd.push({ name: s.name, value });
-          return;
+        if (s.name === 'Grade' || s.name === 'Professional Grader' || s.name === 'Certification Number') {
+          // For TCG categories: managed by graded/ungraded panel — don't auto-add to visible specifics
+          // For non-TCG: add normally below
+          if (TCG_CATS_MODAL.has(String(form?.ebayCategory || ''))) return;
         }
 
         if (!s.required) return; // skip non-required aspects
@@ -457,7 +450,7 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
               const hasValues = displayValues.length > 0;
               const isRequired = spec?.required;
               // Hide Sport (auto-filled) and Professional Grader when Grade=Ungraded
-              if (shouldHideAspect(s.name, itemSpecifics)) return null;
+              if (shouldHideAspect(s.name, itemSpecifics, form.ebayCategory)) return null;
               return(
                 <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:6,marginBottom:4}}>
                   <div style={{position:'relative'}}>
