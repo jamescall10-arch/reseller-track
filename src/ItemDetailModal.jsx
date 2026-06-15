@@ -3,6 +3,12 @@ import PhotoUpload from './PhotoUpload.jsx';
 import { EBAY_CONDITIONS, SHIPPING_SERVICES, EBAY_CATEGORIES, getDefaultItemSpecifics } from './ebayData.js';
 import EbayCategoryPicker from './EbayCategoryPicker.jsx';
 
+// Trading card categories requiring graded/ungraded UI
+const TCG_CATS_MODAL = new Set(['183454','183050','261328']);
+// Grader options for graded card UI
+const GRADER_OPTIONS = ['PSA','BGS (Beckett)','CGC','SGC','GMA','HGA','BVG','BCCG','ISA','GSG','PGS','MNT Grading (MNT)','TAG','Rare Edition (Rare)','RCG','CGA','Other'];
+const GRADE_OPTIONS  = ['10','9.5','9','8.5','8','7.5','7','6.5','6','5.5','5','4.5','4','3.5','3','2.5','2','1.5','1','Authentic'];
+
 // Fallback values for aspects eBay returns as free-text or with incomplete value lists
 // These mirror what eBay's own listing form shows
 const ASPECT_FALLBACKS = {
@@ -81,6 +87,19 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
   const [categorySpecifics, setCategorySpecifics] = useState(null);
   const [categoryPath,      setCategoryPath]      = useState(item.categoryPath || []);
   const [loadingSpecifics,  setLoadingSpecifics]  = useState(false);
+
+  // Sync grader/grade into itemSpecifics whenever graded state changes
+  const syncGradedSpecifics = (graded, grader, grade) => {
+    setItemSpecifics(prev => {
+      let next = prev.filter(s => s.name !== 'Grade' && s.name !== 'Professional Grader');
+      if (graded) {
+        next = [...next, { name:'Grade', value: grade }, { name:'Professional Grader', value: grader }];
+      } else {
+        next = [...next, { name:'Grade', value:'Ungraded' }];
+      }
+      return next;
+    });
+  };
 
   const handleSpecificsLoaded = (specifics) => {
     setCategorySpecifics(specifics);
@@ -164,6 +183,12 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
   const [itemFulfilmentId, setItemFulfilmentId] = useState(item.fulfillmentPolicyId || fulfillmentPolicyId || '');
   const [conditionDesc,   setConditionDesc]    = useState(item.conditionDescription || '');
   const [specificSearch,  setSpecificSearch]   = useState({}); // {index: searchText}
+  const [cardGraded,      setCardGraded]       = useState(
+    // Initialise as graded if existing Grade specific is a numeric value
+    () => { const g = item.itemSpecifics?.find(s=>s.name==='Grade')?.value; return !!(g && g !== 'Ungraded' && g !== ''); }
+  );
+  const [graderVal,       setGraderVal]        = useState(item.itemSpecifics?.find(s=>s.name==='Professional Grader')?.value || 'PSA');
+  const [gradeVal,        setGradeVal]         = useState(item.itemSpecifics?.find(s=>s.name==='Grade' && s.value !== 'Ungraded')?.value || '9');
   const [postalCode,      setPostalCode]       = useState(item.postalCode || cfg?.postalCode || '');
   const [publishing,      setPublishing]       = useState(false);
   const [publishResult,   setPublishResult]    = useState(null);
@@ -190,7 +215,6 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
   const catLabel = cats?.find(c=>c.id===item.categoryId)?.name || '';
 
   const descParts = [];
-  if (form.condition) descParts.push(`Condition: ${form.condition}`);
   if (cfg?.listingDescription?.trim()) descParts.push(cfg.listingDescription.trim());
   const previewDesc = descParts.join('\n\n');
 
@@ -240,7 +264,6 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
             price:               priceNum,
             qty:                 Math.max(1, parseInt(form.qty, 10) || 1),
             condition:           form.condition,
-            conditionDescription: conditionDesc,
             ebayCategory:        form.ebayCategory,
             photos:              form.photos,
             description:         previewDesc,
@@ -354,6 +377,45 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
                 ))}
               </select>
             </div>
+            {/* TCG Graded/Ungraded toggle — only for trading card categories */}
+            {TCG_CATS_MODAL.has(form.ebayCategory) && (
+              <div style={{background:'#1c2128',border:'1px solid #30363d',borderRadius:8,padding:'12px'}}>
+                <div style={{fontSize:12,fontWeight:600,marginBottom:10}}>Card condition</div>
+                <div style={{display:'flex',gap:8,marginBottom:10}}>
+                  {['Ungraded','Graded'].map(opt=>(
+                    <button key={opt} type="button"
+                      style={{padding:'6px 16px',borderRadius:6,border:`1px solid ${cardGraded===(opt==='Graded')?'#1f6feb':'#30363d'}`,background:cardGraded===(opt==='Graded')?'#1f6feb':'transparent',color:'#e6edf3',cursor:'pointer',fontSize:12}}
+                      onClick={()=>{ const g=opt==='Graded'; setCardGraded(g); syncGradedSpecifics(g,graderVal,gradeVal); }}
+                    >{opt}</button>
+                  ))}
+                </div>
+                {cardGraded ? (
+                  <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                    <div style={S.row2}>
+                      <div style={S.field}>
+                        <label style={S.lbl}>Professional Grader</label>
+                        <select style={S.inp} value={graderVal} onChange={e=>{setGraderVal(e.target.value);syncGradedSpecifics(true,e.target.value,gradeVal);}}>
+                          {GRADER_OPTIONS.map(g=><option key={g} value={g}>{g}</option>)}
+                        </select>
+                      </div>
+                      <div style={S.field}>
+                        <label style={S.lbl}>Grade</label>
+                        <select style={S.inp} value={gradeVal} onChange={e=>{setGradeVal(e.target.value);syncGradedSpecifics(true,graderVal,e.target.value);}}>
+                          {GRADE_OPTIONS.map(g=><option key={g} value={g}>{g}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div style={{fontSize:11,color:'#8b949e'}}>Graded cards are listed as Condition: Graded on eBay</div>
+                  </div>
+                ) : (
+                  <div style={{fontSize:11,color:'#8b949e'}}>
+                    Card condition is taken from the <strong style={{color:'#e6edf3'}}>Condition</strong> field above
+                    ({form.condition || 'not set'}) and mapped to eBay's card condition scale
+                  </div>
+                )}
+              </div>
+            )}
+
             <div style={S.field}>
               <label style={S.lbl}>eBay category</label>
               <EbayCategoryPicker
