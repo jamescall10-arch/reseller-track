@@ -7,7 +7,24 @@
  * - conditionDescriptors array required with numeric IDs
  * Docs: https://developer.ebay.com/api-docs/sell/inventory/static/overview.html
  */
-import { getUserToken, EBAY_API, MARKETPLACE_ID, ebayHeaders } from './_token.js';
+import { getUserToken, getAppToken, EBAY_API, MARKETPLACE_ID, ebayHeaders } from './_token.js';
+
+// In-memory cache for condition policies (fetched from Metadata API)
+const COND_CACHE = {};
+
+async function fetchConditionPolicies(categoryId) {
+  if (COND_CACHE[categoryId]) return COND_CACHE[categoryId];
+  try {
+    const token = await getAppToken();
+    const url   = `${EBAY_API}/sell/metadata/v1/marketplace/${MARKETPLACE_ID}/get_item_condition_policies?filter=categoryIds:{${categoryId}}`;
+    const r     = await fetch(url, { headers: { 'Authorization': `Bearer ${token}`, 'X-EBAY-C-MARKETPLACE-ID': MARKETPLACE_ID } });
+    if (!r.ok) return null;
+    const data  = await r.json();
+    const pol   = (data.itemConditionPolicies || []).find(p => String(p.categoryId) === String(categoryId));
+    COND_CACHE[categoryId] = pol || null;
+    return pol || null;
+  } catch { return null; }
+}
 
 // ── TCG category IDs that require special condition handling ───────────────────
 const TCG_CATS = new Set(['183454', '183050', '261328']);
@@ -102,39 +119,68 @@ const CONDITION_ENUM = {
   'Seller refurbished': 'SELLER_REFURBISHED',
 };
 
-// ── Resolve condition + conditionDescriptors for a given item ─────────────────
-function resolveCondition(categoryId, appCondition, itemSpecifics) {
+// ── Resolve condition + conditionDescriptors using Metadata API ───────────────
+// App condition label → eBay condition name for matching
+const APP_TO_EBAY_LABEL = {
+  'Near Mint or Better (NM/M)': ['Near Mint or Better','Near Mint'],
+  'Lightly Played (LP)':        ['Lightly Played','Excellent'],
+  'Moderately Played (MP)':     ['Moderately Played','Very Good'],
+  'Heavily Played (HP)':        ['Heavily Played','Poor'],
+  'Damaged (D)':                ['Poor','Damaged'],
+};
+
+async function resolveCondition(categoryId, appCondition, itemSpecifics) {
   const catStr = String(categoryId || '');
 
   if (!TCG_CATS.has(catStr)) {
     return { condition: CONDITION_ENUM[appCondition] || 'USED_GOOD', conditionDescriptors: undefined };
   }
 
-  // Trading card category — check if graded
   const gradeVal  = itemSpecifics?.find(s => s.name === 'Grade')?.value || '';
   const graderVal = itemSpecifics?.find(s => s.name === 'Professional Grader')?.value || '';
-  const isGraded  = gradeVal && gradeVal !== 'Ungraded';
+  const isGraded  = gradeVal && gradeVal !== 'Ungraded' && gradeVal !== '';
+
+  // Fetch actual valid IDs from Metadata API
+  const policies = await fetchConditionPolicies(catStr);
 
   if (isGraded) {
-    const gradeId  = GRADE_IDS[gradeVal];
-    const graderId = GRADER_IDS[graderVal];
-    if (gradeId && graderId) {
+    const gradedCond      = policies?.itemConditions?.find(c => c.conditionId === '2750');
+    const graderDescVals  = gradedCond?.conditionDescriptors?.find(d => d.conditionDescriptorId === '27501')?.conditionDescriptorValues || [];
+    const gradeDescVals   = gradedCond?.conditionDescriptors?.find(d => d.conditionDescriptorId === '27502')?.conditionDescriptorValues || [];
+
+    // Find grader ID — try exact match then partial
+    const graderId = graderDescVals.find(v => v.conditionDescriptorValueName === graderVal)?.conditionDescriptorValueId
+                  || graderDescVals.find(v => v.conditionDescriptorValueName?.toLowerCase().includes(graderVal?.split('(')[0].trim().toLowerCase()))?.conditionDescriptorValueId
+                  || GRADER_IDS[graderVal];
+    const gradeId  = gradeDescVals.find(v => v.conditionDescriptorValueName === gradeVal)?.conditionDescriptorValueId
+                  || GRADE_IDS[gradeVal];
+
+    if (graderId && gradeId) {
       return {
-        condition: 'LIKE_NEW', // Condition ID 2750 = Graded
-        conditionDescriptors: [
-          { name: '27501', values: [graderId] },
-          { name: '27502', values: [gradeId]  },
-        ],
+        condition: 'LIKE_NEW',
+        conditionDescriptors: [{ name: '27501', values: [graderId] }, { name: '27502', values: [gradeId] }],
       };
     }
   }
 
-  // Ungraded — map app condition to Card Condition ID for this category
-  const condMap     = CARD_CONDITION_IDS[catStr] || CARD_CONDITION_IDS['183454'];
-  const cardCondId  = condMap[appCondition] || '400010'; // default NM
+  // Ungraded — find Card Condition ID from Metadata API
+  const ungradedCond = policies?.itemConditions?.find(c => c.conditionId === '4000');
+  const cardCondVals = ungradedCond?.conditionDescriptors?.find(d => d.conditionDescriptorId === '40001')?.conditionDescriptorValues || [];
+
+  // Find best matching value for this app condition
+  const targetLabels = APP_TO_EBAY_LABEL[appCondition] || ['Near Mint or Better'];
+  let bestVal = null;
+  for (const label of targetLabels) {
+    bestVal = cardCondVals.find(v => v.conditionDescriptorValueName?.toLowerCase().includes(label.toLowerCase()));
+    if (bestVal) break;
+  }
+  // Final fallback: first value (should be NM), or hardcoded 400010
+  const cardCondId = bestVal?.conditionDescriptorValueId || cardCondVals[0]?.conditionDescriptorValueId || '400010';
+
+  console.log('[listing] TCG condition resolved:', { catStr, appCondition, condition: 'USED_VERY_GOOD', cardCondId, availableVals: cardCondVals.map(v=>v.conditionDescriptorValueName+':'+v.conditionDescriptorValueId) });
 
   return {
-    condition: 'USED_VERY_GOOD', // Condition ID 4000 = Ungraded
+    condition: 'USED_VERY_GOOD',
     conditionDescriptors: [{ name: '40001', values: [cardCondId] }],
   };
 }
@@ -194,7 +240,7 @@ export default async function handler(req, res) {
     const locationKey = await ensureLocation(token, item.postalCode);
 
     // Resolve condition — trading card categories have special rules
-    const { condition, conditionDescriptors } = resolveCondition(
+    const { condition, conditionDescriptors } = await resolveCondition(
       item.ebayCategory, item.condition, item.itemSpecifics
     );
 
