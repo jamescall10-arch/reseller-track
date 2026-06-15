@@ -132,8 +132,9 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
 
         if (!s.required) return; // skip non-required aspects
 
-        // Required aspect — add with first sensible value
-        value = allValues[0] || '';
+        // Required aspect — start blank for choice fields, auto-fill only for single-value fields
+        const BLANK_ON_LOAD = new Set(['Game','Type','Model','Brand','Material','Colour','Size']);
+        value = (BLANK_ON_LOAD.has(s.name) || allValues.length > 1) ? '' : (allValues[0] || '');
         toAdd.push({ name: s.name, value });
       });
 
