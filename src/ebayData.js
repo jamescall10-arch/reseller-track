@@ -204,22 +204,10 @@ const GRADED_CARD_CATEGORIES = new Set(['261328']);
 
 export function getDefaultItemSpecifics(categoryId) {
   const catStr = String(categoryId || '');
-  if (GRADED_CARD_CATEGORIES.has(catStr)) {
-    // Graded card categories require Grade and Professional Grader
-    return [
-      { name:'Sport',               value:'Non-Sport Trading Cards' },
-      { name:'Grade',               value:'Ungraded' },
-      { name:'Professional Grader', value:'Not Professionally Graded' },
-    ];
-  }
-  if (TCG_CATEGORY_IDS.has(catStr)) {
-    // Standard CCG category — Sport, Game, Grade, Professional Grader required by eBay UK
-    return [
-      { name:'Sport',               value:'Non-Sport Trading Cards' },
-      { name:'Game',                value:'' },
-      { name:'Grade',               value:'' },
-      { name:'Professional Grader', value:'' },
-    ];
+  if (TCG_CATEGORY_IDS.has(catStr) || GRADED_CARD_CATEGORIES.has(catStr)) {
+    // Sport is required by eBay for TCG categories — auto-fill it silently
+    // Grade/Professional Grader are managed by the graded/ungraded panel in ItemDetailModal
+    return [{ name:'Sport', value:'Non-Sport Trading Cards' }];
   }
   return [];
 }
