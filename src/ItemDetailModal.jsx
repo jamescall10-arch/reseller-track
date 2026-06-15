@@ -357,87 +357,90 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
             </div>
           )}
 
-          {/* Condition + eBay category */}
-          <div style={S.row2}>
+          {/* Condition — filtered by category type */}
+          {!(TCG_CATS_MODAL.has(form.ebayCategory) && cardGraded) && (
             <div style={S.field}>
               <label style={S.lbl}>Condition</label>
               <select style={S.inp} value={form.condition} onChange={e=>f('condition',e.target.value)}>
                 <option value="">Select condition…</option>
-                {EBAY_CONDITIONS.map(g=>(
-                  <optgroup key={g.group} label={g.group}>
-                    {g.items.map(c=><option key={c} value={c}>{c}</option>)}
-                  </optgroup>
-                ))}
+                {EBAY_CONDITIONS
+                  .filter(g => !form.ebayCategory || (
+                    TCG_CATS_MODAL.has(form.ebayCategory)
+                      ? g.group === 'Trading Cards (TCG)'
+                      : g.group !== 'Trading Cards (TCG)'
+                  ))
+                  .map(g=>(
+                    <optgroup key={g.group} label={g.group}>
+                      {g.items.map(c=><option key={c} value={c}>{c}</option>)}
+                    </optgroup>
+                  ))
+                }
               </select>
             </div>
-            {/* TCG Graded/Ungraded toggle — only for trading card categories */}
-            {TCG_CATS_MODAL.has(form.ebayCategory) && (
-              <div style={{background:'#1c2128',border:'1px solid #30363d',borderRadius:8,padding:'12px'}}>
-                <div style={{fontSize:12,fontWeight:600,marginBottom:10}}>Card condition</div>
-                <div style={{display:'flex',gap:8,marginBottom:10}}>
-                  {['Ungraded','Graded'].map(opt=>(
-                    <button key={opt} type="button"
-                      style={{padding:'6px 16px',borderRadius:6,border:`1px solid ${cardGraded===(opt==='Graded')?'#1f6feb':'#30363d'}`,background:cardGraded===(opt==='Graded')?'#1f6feb':'transparent',color:'#e6edf3',cursor:'pointer',fontSize:12}}
-                      onClick={()=>{ const g=opt==='Graded'; setCardGraded(g); syncGradedSpecifics(g,graderVal,gradeVal); }}
-                    >{opt}</button>
-                  ))}
-                </div>
-                {cardGraded ? (
-                  <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                    <div style={S.row2}>
-                      <div style={S.field}>
-                        <label style={S.lbl}>Professional Grader</label>
-                        <select style={S.inp} value={graderVal} onChange={e=>{setGraderVal(e.target.value);syncGradedSpecifics(true,e.target.value,gradeVal);}}>
-                          {GRADER_OPTIONS.map(g=><option key={g} value={g}>{g}</option>)}
-                        </select>
-                      </div>
-                      <div style={S.field}>
-                        <label style={S.lbl}>Grade</label>
-                        <select style={S.inp} value={gradeVal} onChange={e=>{setGradeVal(e.target.value);syncGradedSpecifics(true,graderVal,e.target.value);}}>
-                          {GRADE_OPTIONS.map(g=><option key={g} value={g}>{g}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                    <div style={{fontSize:11,color:'#8b949e'}}>Graded cards are listed as Condition: Graded on eBay</div>
-                  </div>
-                ) : (
-                  <div style={{fontSize:11,color:'#8b949e'}}>
-                    Card condition is taken from the <strong style={{color:'#e6edf3'}}>Condition</strong> field above
-                    ({form.condition || 'not set'}) and mapped to eBay's card condition scale
-                  </div>
-                )}
-              </div>
-            )}
+          )}
 
-            <div style={S.field}>
-              <label style={S.lbl}>eBay category</label>
-              <EbayCategoryPicker
-                value={form.ebayCategory}
-                valuePath={categoryPath}
-                onChange={handleCategoryChange}
-                userId={userId}
-                itemName={form.name}
-                ebayConnected={ebayConnected}
-                onSpecificsLoaded={handleSpecificsLoaded}
-              />
+          {/* TCG Graded/Ungraded panel */}
+          {TCG_CATS_MODAL.has(form.ebayCategory) && (
+            <div style={{background:'#1c2128',border:'1px solid #30363d',borderRadius:8,padding:'12px'}}>
+              <div style={{fontSize:12,fontWeight:600,marginBottom:10}}>Card type</div>
+              <div style={{display:'flex',gap:8,marginBottom:10}}>
+                {['Ungraded','Graded'].map(opt=>(
+                  <button key={opt} type="button"
+                    style={{padding:'6px 16px',borderRadius:6,border:`1px solid ${cardGraded===(opt==='Graded')?'#1f6feb':'#30363d'}`,background:cardGraded===(opt==='Graded')?'#1f6feb':'transparent',color:'#e6edf3',cursor:'pointer',fontSize:12,fontWeight:cardGraded===(opt==='Graded')?600:400}}
+                    onClick={()=>{ const g=opt==='Graded'; setCardGraded(g); syncGradedSpecifics(g,graderVal,gradeVal); }}
+                  >{opt}</button>
+                ))}
+              </div>
+              {cardGraded ? (
+                <div style={S.row2}>
+                  <div style={S.field}>
+                    <label style={S.lbl}>Grading company</label>
+                    <select style={S.inp} value={graderVal} onChange={e=>{setGraderVal(e.target.value);syncGradedSpecifics(true,e.target.value,gradeVal);}}>
+                      {GRADER_OPTIONS.map(g=><option key={g} value={g}>{g}</option>)}
+                    </select>
+                  </div>
+                  <div style={S.field}>
+                    <label style={S.lbl}>Grade</label>
+                    <select style={S.inp} value={gradeVal} onChange={e=>{setGradeVal(e.target.value);syncGradedSpecifics(true,graderVal,e.target.value);}}>
+                      {GRADE_OPTIONS.map(g=><option key={g} value={g}>{g}</option>)}
+                    </select>
+                  </div>
+                </div>
+              ) : (
+                <div style={{fontSize:11,color:'#8b949e'}}>
+                  Card condition maps from the <strong style={{color:'#e6edf3'}}>Condition</strong> field above
+                </div>
+              )}
             </div>
+          )}
+
+          {/* eBay category */}
+          <div style={S.field}>
+            <label style={S.lbl}>eBay category</label>
+            <EbayCategoryPicker
+              value={form.ebayCategory}
+              valuePath={categoryPath}
+              onChange={handleCategoryChange}
+              userId={userId}
+              itemName={form.name}
+              ebayConnected={ebayConnected}
+              onSpecificsLoaded={handleSpecificsLoaded}
+            />
           </div>
 
-          {/* Item specifics */}
+          {/* Item specifics — auto-loaded from eBay when category is selected */}
+          {(form.ebayCategory || itemSpecifics.filter(s=>!shouldHideAspect(s.name,itemSpecifics,form.ebayCategory)).length > 0) && (
           <div style={S.field}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-              <label style={S.lbl}>Item specifics <span style={{color:'#6e7681'}}>(required by eBay for many categories)</span></label>
-              <button type="button" style={S.btnSm} onClick={addSpecific}>＋ Add</button>
-            </div>
-            {itemSpecifics.length===0&&(
-              <div style={{fontSize:11,color:'#6e7681',padding:'6px 0'}}>No item specifics yet. Some categories require these — e.g. Pokémon cards need Sport: Non-Sport Trading Cards</div>
-            )}
-            <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:6}}>
+              <label style={S.lbl}>Required listing details</label>
               {loadingSpecifics
-                ? <div style={{fontSize:11,color:'#8b949e'}}>⏳ Loading required fields from eBay…</div>
-                : form.ebayCategory&&ebayConnected&&<button type="button" style={S.btnSm} onClick={()=>fetchCategorySpecifics(form.ebayCategory)}>↻ Reload required fields from eBay</button>
+                ? <span style={{fontSize:11,color:'#8b949e'}}>⏳ Loading…</span>
+                : form.ebayCategory&&ebayConnected&&<button type="button" style={S.btnSm} onClick={()=>fetchCategorySpecifics(form.ebayCategory)}>↻ Refresh</button>
               }
             </div>
+            {!form.ebayCategory && (
+              <div style={{fontSize:11,color:'#6e7681'}}>Select an eBay category above to load required fields</div>
+            )}
             {itemSpecifics.map((s,i)=>{
               const spec = categorySpecifics?.find(cs=>cs.name.toLowerCase()===s.name.toLowerCase());
               // Merge eBay API values with our curated fallbacks, deduplicated
@@ -454,8 +457,8 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
               return(
                 <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:6,marginBottom:4}}>
                   <div style={{position:'relative'}}>
-                    <input style={{...S.inp,borderColor:isRequired?'#d29922':'#30363d'}} value={s.name} onChange={e=>updateSpecific(i,'name',e.target.value)} placeholder="Name (e.g. Sport)"/>
-                    {isRequired?<span style={{position:'absolute',right:6,top:'50%',transform:'translateY(-50%)',fontSize:9,color:'#d29922'}}>REQ</span>:<span style={{position:'absolute',right:6,top:'50%',transform:'translateY(-50%)',fontSize:9,color:'#6e7681'}}>REC</span>}
+                    <div style={{...S.inp,borderColor:isRequired?'#d29922':'#30363d',color:'#8b949e',display:'flex',alignItems:'center',paddingRight:36,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.name}</div>
+                    {isRequired&&<span style={{position:'absolute',right:6,top:'50%',transform:'translateY(-50%)',fontSize:9,color:'#d29922',background:'#1c2128',padding:'1px 3px',borderRadius:3}}>REQ</span>}
                   </div>
                   {hasValues && displayValues.length > 25
                     ? (() => {
@@ -501,6 +504,7 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
               );
             })}
           </div>
+          )}
 
           {/* eBay listing preview */}
           <button type="button" style={{...S.btn,fontSize:12,padding:'5px 10px',alignSelf:'flex-start'}} onClick={()=>setShowPreview(p=>!p)}>
