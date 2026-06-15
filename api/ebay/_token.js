@@ -17,6 +17,8 @@ export function ebayHeaders(token, extra = {}) {
     'Authorization':           `Bearer ${token}`,
     'Content-Type':            'application/json',
     'X-EBAY-C-MARKETPLACE-ID': MARKETPLACE_ID,
+    'Accept-Language':         'en-GB',
+    'Content-Language':        'en-GB',
     ...extra,
   };
 }
