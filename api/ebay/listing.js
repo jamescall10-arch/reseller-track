@@ -47,7 +47,7 @@ export default async function handler(req, res) {
     const locationKey = await ensureLocation(token,item.postalCode);
 
     // Step 1: PUT inventory item
-    const put=await fetch(EBAY_API+'/sell/inventory/v1/inventory_item/'+encodeURIComponent(sku),{method:'PUT',headers:ebayHeaders(token),body:JSON.stringify({availability:{shipToLocationAvailability:{quantity:qty}},condition,conditionDescription:item.conditionDescription||item.condition||'',product:{title:(item.name||'').slice(0,80),description,imageUrls:images.length?images:undefined,aspects:Object.keys(aspects).length?aspects:undefined}})});
+    const put=await fetch(EBAY_API+'/sell/inventory/v1/inventory_item/'+encodeURIComponent(sku),{method:'PUT',headers:ebayHeaders(token,{'Content-Language':'en-GB'}),body:JSON.stringify({availability:{shipToLocationAvailability:{quantity:qty}},condition,conditionDescription:item.conditionDescription||item.condition||'',product:{title:(item.name||'').slice(0,80),description,imageUrls:images.length?images:undefined,aspects:Object.keys(aspects).length?aspects:undefined}})});
     if(put.status>=400){const e=await put.json().catch(()=>({}));throw new Error('Inventory item: '+parseErrors(e));}
 
     // Step 2: POST offer
