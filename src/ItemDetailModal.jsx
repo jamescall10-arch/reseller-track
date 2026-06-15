@@ -385,12 +385,13 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
             </div>
             {itemSpecifics.map((s,i)=>{
               const spec = categorySpecifics?.find(cs=>cs.name.toLowerCase()===s.name.toLowerCase());
-              // Use eBay values if available, fall back to our curated list
-              const displayValues = spec?.values?.length
-                ? (s.name==='Grade' && !spec.values.includes('Ungraded')
-                    ? ['Ungraded',...spec.values]   // always offer Ungraded for Grade
-                    : spec.values)
-                : (ASPECT_FALLBACKS[s.name] || []);
+              // Merge eBay API values with our curated fallbacks, deduplicated
+              const apiVals      = spec?.values || [];
+              const fallbackVals = ASPECT_FALLBACKS[s.name] || [];
+              const merged       = [...new Set([...fallbackVals, ...apiVals])];
+              const displayValues = s.name === 'Grade' && !merged.includes('Ungraded')
+                ? ['Ungraded', ...merged]
+                : merged.length ? merged : apiVals;
               const hasValues = displayValues.length > 0;
               const isRequired = spec?.required;
               // Hide Sport (auto-filled) and Professional Grader when Grade=Ungraded
@@ -404,8 +405,9 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
                   {hasValues && displayValues.length > 25
                     ? (() => {
                         const q = specificSearch[i] ?? s.value ?? '';
+                        const norm = str => str.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
                         const filtered = q.trim()
-                          ? displayValues.filter(v => v.toLowerCase().includes(q.toLowerCase()))
+                          ? displayValues.filter(v => norm(v).includes(norm(q)))
                           : displayValues.slice(0, 8);
                         return (
                           <div style={{position:'relative'}}>
