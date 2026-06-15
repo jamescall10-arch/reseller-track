@@ -163,6 +163,7 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
   const [sellerPostage,   setSellerPostage]    = useState(String(item.sellerPostageCost || cfg?.postage || '1.00'));
   const [itemFulfilmentId, setItemFulfilmentId] = useState(item.fulfillmentPolicyId || fulfillmentPolicyId || '');
   const [conditionDesc,   setConditionDesc]    = useState(item.conditionDescription || '');
+  const [specificSearch,  setSpecificSearch]   = useState({}); // {index: searchText}
   const [postalCode,      setPostalCode]       = useState(item.postalCode || cfg?.postalCode || '');
   const [publishing,      setPublishing]       = useState(false);
   const [publishResult,   setPublishResult]    = useState(null);
@@ -400,7 +401,36 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
                     <input style={{...S.inp,borderColor:isRequired?'#d29922':'#30363d'}} value={s.name} onChange={e=>updateSpecific(i,'name',e.target.value)} placeholder="Name (e.g. Sport)"/>
                     {isRequired?<span style={{position:'absolute',right:6,top:'50%',transform:'translateY(-50%)',fontSize:9,color:'#d29922'}}>REQ</span>:<span style={{position:'absolute',right:6,top:'50%',transform:'translateY(-50%)',fontSize:9,color:'#6e7681'}}>REC</span>}
                   </div>
-                  {hasValues
+                  {hasValues && displayValues.length > 25
+                    ? (() => {
+                        const q = specificSearch[i] ?? s.value ?? '';
+                        const filtered = q.trim()
+                          ? displayValues.filter(v => v.toLowerCase().includes(q.toLowerCase()))
+                          : displayValues.slice(0, 8);
+                        return (
+                          <div style={{position:'relative'}}>
+                            <input
+                              style={S.inp}
+                              value={q}
+                              placeholder={`Search ${s.name}…`}
+                              onChange={e => setSpecificSearch(p=>({...p,[i]:e.target.value}))}
+                              onFocus={e => setSpecificSearch(p=>({...p,[i]:p[i]??s.value??''}))}
+                              onBlur={() => setTimeout(()=>setSpecificSearch(p=>{const n={...p};delete n[i];return n;}), 150)}
+                            />
+                            {specificSearch[i] !== undefined && filtered.length > 0 && (
+                              <div style={{position:'absolute',top:'100%',left:0,right:0,background:'#1c2128',border:'1px solid #30363d',borderRadius:6,zIndex:99,maxHeight:180,overflowY:'auto',marginTop:2}}>
+                                {filtered.map(v=>(
+                                  <div key={v}
+                                    style={{padding:'7px 10px',cursor:'pointer',fontSize:12,borderBottom:'1px solid #21262d'}}
+                                    onMouseDown={()=>{updateSpecific(i,'value',v);setSpecificSearch(p=>{const n={...p};delete n[i];return n;});}}
+                                  >{v}</div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()
+                    : hasValues
                     ? <select style={S.inp} value={s.value} onChange={e=>updateSpecific(i,'value',e.target.value)}>
                         <option value="">Select…</option>
                         {displayValues.map(v=><option key={v} value={v}>{v}</option>)}
