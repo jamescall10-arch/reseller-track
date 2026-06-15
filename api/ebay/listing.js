@@ -1,68 +1,276 @@
-// POST {userId, item} → create eBay listing via Inventory REST API
-// Replaces deprecated Trading API AddItem (XML)
+/**
+ * Creates eBay listings using the Inventory REST API.
+ * Flow: PUT inventory_item → POST offer → POST offer/{id}/publish
+ *
+ * Trading card categories (183454, 183050, 261328) have special condition rules:
+ * - Only LIKE_NEW (graded) or USED_VERY_GOOD (ungraded) are valid
+ * - conditionDescriptors array required with numeric IDs
+ * Docs: https://developer.ebay.com/api-docs/sell/inventory/static/overview.html
+ */
 import { getUserToken, EBAY_API, MARKETPLACE_ID, ebayHeaders } from './_token.js';
 
-const CONDITION_ENUM = {
-  'New':'NEW','Open box':'NEW_OTHER','Seller refurbished':'MANUFACTURER_REFURBISHED',
-  'Used \u2014 Like New':'LIKE_NEW','Near Mint or Better (NM/M)':'LIKE_NEW',
-  'Used \u2014 Very Good':'USED_EXCELLENT','Lightly Played (LP)':'USED_EXCELLENT',
-  'Used \u2014 Good':'USED_VERY_GOOD','Moderately Played (MP)':'USED_GOOD',
-  'Used \u2014 Acceptable':'USED_ACCEPTABLE','Heavily Played (HP)':'USED_ACCEPTABLE',
-  'Damaged (D)':'FOR_PARTS_OR_NOT_WORKING','For parts or not working':'FOR_PARTS_OR_NOT_WORKING',
+// ── TCG category IDs that require special condition handling ───────────────────
+const TCG_CATS = new Set(['183454', '183050', '261328']);
+
+// ── Card Condition IDs for ungraded cards (descriptor name: "40001") ──────────
+// Category 183454 (CCG Individual Cards) supports: NM, Excellent, Very Good, Poor
+// Category 183050 (Non-Sport Trading Card Singles) supports LP/MP/HP variants too
+const CARD_CONDITION_IDS = {
+  '183454': {
+    'Near Mint or Better (NM/M)': '400010',
+    'Lightly Played (LP)':        '400011', // Excellent
+    'Moderately Played (MP)':     '400012', // Very Good
+    'Heavily Played (HP)':        '400013', // Poor
+    'Damaged (D)':                '400013', // Poor (closest)
+    // generic fallbacks
+    'Near Mint':  '400010', 'Excellent': '400011',
+    'Very Good':  '400012', 'Good':      '400012', 'Poor': '400013',
+  },
+  '183050': {
+    'Near Mint or Better (NM/M)': '400010',
+    'Lightly Played (LP)':        '400015',
+    'Moderately Played (MP)':     '400016',
+    'Heavily Played (HP)':        '400017',
+    'Damaged (D)':                '400013',
+    'Near Mint': '400010', 'Excellent': '400011',
+    'Very Good': '400012', 'Poor':      '400013',
+  },
+  '261328': {
+    'Near Mint or Better (NM/M)': '400010',
+    'Lightly Played (LP)':        '400011',
+    'Moderately Played (MP)':     '400012',
+    'Heavily Played (HP)':        '400013',
+    'Damaged (D)':                '400013',
+    'Near Mint': '400010', 'Excellent': '400011',
+    'Very Good': '400012', 'Poor':      '400013',
+  },
 };
 
-function aspectsToDict(s) {
-  const d={};(s||[]).forEach(x=>{if(x.name?.trim()&&x.value?.trim())d[x.name.trim()]=[x.value.trim()];});return d;
+// ── Professional Grader IDs (descriptor name: "27501") ───────────────────────
+const GRADER_IDS = {
+  'Professional Sports Authenticator (PSA)': '275010',
+  'PSA': '275010',
+  'Beckett Collectors Club Grading (BCCG)': '275011',
+  'BCCG': '275011',
+  'Beckett Vintage Grading (BVG)': '275012',
+  'BVG': '275012',
+  'Beckett Grading Services (BGS)': '275013',
+  'BGS (Beckett)': '275013', 'BGS': '275013',
+  'Certified Guaranty Company (CGC)': '275015',
+  'CGC': '275015',
+  'Sportscard Guaranty Corporation (SGC)': '275016',
+  'SGC': '275016',
+  'K Sportscard Authentication (KSA)': '275017',
+  'KSA': '275017',
+  'Gem Mint Authentication (GMA)': '275018',
+  'GMA': '275018',
+  'Hybrid Grading Approach (HGA)': '275019',
+  'HGA': '275019',
+  'International Sports Authentication (ISA)': '2750110',
+  'ISA': '2750110',
+  'Gold Standard Grading (GSG)': '2750112',
+  'GSG': '2750112',
+  'Platin Grading Service (PGS)': '2750113',
+  'PGS': '2750113',
+  'MNT Grading (MNT)': '2750114', 'MNT': '2750114',
+  'Technical Authentication & Grading (TAG)': '2750115', 'TAG': '2750115',
+  'Rare Edition (Rare)': '2750116',
+  'Revolution Card Grading (RCG)': '2750117', 'RCG': '2750117',
+  'Card Grading Australia (CGA)': '2750120', 'CGA': '2750120',
+  'Other': '2750123',
+};
+
+// ── Grade IDs (descriptor name: "27502") ─────────────────────────────────────
+const GRADE_IDS = {
+  '10': '275020', '9.5': '275021', '9': '275022', '8.5': '275023',
+  '8':  '275024', '7.5': '275025', '7': '275026', '6.5': '275027',
+  '6':  '275028', '5.5': '275029', '5': '2750210', '4.5': '2750211',
+  '4':  '2750212', '3.5': '2750213', '3': '2750214', '2.5': '2750215',
+  '2':  '2750216', '1.5': '2750217', '1': '2750218',
+  'Authentic': '2750219', 'Authentic Altered': '2750220',
+  'Authentic - Trimmed': '2750221', 'Authentic - Coloured': '2750222',
+};
+
+// ── Standard condition enum for non-TCG categories ───────────────────────────
+const CONDITION_ENUM = {
+  'New': 'NEW', 'Open box': 'NEW_OTHER',
+  'Used \u2014 Like New': 'LIKE_NEW', 'Near Mint or Better (NM/M)': 'LIKE_NEW',
+  'Used \u2014 Very Good': 'USED_EXCELLENT', 'Lightly Played (LP)': 'USED_EXCELLENT',
+  'Used \u2014 Good': 'USED_VERY_GOOD', 'Moderately Played (MP)': 'USED_GOOD',
+  'Used \u2014 Acceptable': 'USED_ACCEPTABLE', 'Heavily Played (HP)': 'USED_ACCEPTABLE',
+  'Damaged (D)': 'FOR_PARTS_OR_NOT_WORKING', 'For parts or not working': 'FOR_PARTS_OR_NOT_WORKING',
+  'Seller refurbished': 'SELLER_REFURBISHED',
+};
+
+// ── Resolve condition + conditionDescriptors for a given item ─────────────────
+function resolveCondition(categoryId, appCondition, itemSpecifics) {
+  const catStr = String(categoryId || '');
+
+  if (!TCG_CATS.has(catStr)) {
+    return { condition: CONDITION_ENUM[appCondition] || 'USED_GOOD', conditionDescriptors: undefined };
+  }
+
+  // Trading card category — check if graded
+  const gradeVal  = itemSpecifics?.find(s => s.name === 'Grade')?.value || '';
+  const graderVal = itemSpecifics?.find(s => s.name === 'Professional Grader')?.value || '';
+  const isGraded  = gradeVal && gradeVal !== 'Ungraded';
+
+  if (isGraded) {
+    const gradeId  = GRADE_IDS[gradeVal];
+    const graderId = GRADER_IDS[graderVal];
+    if (gradeId && graderId) {
+      return {
+        condition: 'LIKE_NEW', // Condition ID 2750 = Graded
+        conditionDescriptors: [
+          { name: '27501', values: [graderId] },
+          { name: '27502', values: [gradeId]  },
+        ],
+      };
+    }
+  }
+
+  // Ungraded — map app condition to Card Condition ID for this category
+  const condMap     = CARD_CONDITION_IDS[catStr] || CARD_CONDITION_IDS['183454'];
+  const cardCondId  = condMap[appCondition] || '400010'; // default NM
+
+  return {
+    condition: 'USED_VERY_GOOD', // Condition ID 4000 = Ungraded
+    conditionDescriptors: [{ name: '40001', values: [cardCondId] }],
+  };
 }
 
+// ── Aspects dict — exclude Grade/Professional Grader for TCG (go in conditionDescriptors) ──
+function buildAspects(itemSpecifics, categoryId) {
+  const catStr = String(categoryId || '');
+  const isTCG  = TCG_CATS.has(catStr);
+  const TCG_SKIP = new Set(['Grade', 'Professional Grader', 'Certification Number']);
+  const dict = {};
+  (itemSpecifics || []).forEach(s => {
+    if (!s.name?.trim() || !s.value?.trim()) return;
+    if (isTCG && TCG_SKIP.has(s.name)) return; // these go in conditionDescriptors
+    dict[s.name.trim()] = [s.value.trim()];
+  });
+  return dict;
+}
+
+// ── Ensure inventory location ──────────────────────────────────────────────────
 async function ensureLocation(token, postalCode) {
-  const key='primary';
-  const c=await fetch(EBAY_API+'/sell/inventory/v1/location/'+key,{headers:ebayHeaders(token)});
-  if(c.ok) return key;
-  if(!postalCode?.trim()) throw new Error('Please set your postal code in Settings before publishing to eBay.');
-  const r=await fetch(EBAY_API+'/sell/inventory/v1/location/'+key,{method:'POST',headers:ebayHeaders(token),body:JSON.stringify({location:{address:{postalCode:postalCode.trim().toUpperCase(),country:'GB'}},merchantLocationStatus:'ENABLED',name:'My selling location',merchantLocationTypes:['WAREHOUSE']})});
-  if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error('Could not create location: '+((e.errors||[]).map(x=>x.message).join(', ')||JSON.stringify(e)).slice(0,200));}
+  const key   = 'primary';
+  const check = await fetch(EBAY_API + '/sell/inventory/v1/location/' + key, { headers: ebayHeaders(token) });
+  if (check.ok) return key;
+  if (!postalCode?.trim()) throw new Error('Please set your postal code in Settings before publishing to eBay.');
+  const r = await fetch(EBAY_API + '/sell/inventory/v1/location/' + key, {
+    method: 'POST', headers: ebayHeaders(token),
+    body: JSON.stringify({
+      location: { address: { postalCode: postalCode.trim().toUpperCase(), country: 'GB' } },
+      merchantLocationStatus: 'ENABLED', name: 'My selling location', merchantLocationTypes: ['WAREHOUSE'],
+    }),
+  });
+  if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error('Could not create location: ' + ((e.errors||[]).map(x=>x.message).join(', ')||'').slice(0,200)); }
   return key;
 }
 
-function parseErrors(e) {
-  return (e.errors||[]).map(x=>x.message+(x.parameters?.length?' ('+x.parameters.map(p=>p.value).join(',')+')'  :'')).join(' | ')||JSON.stringify(e).slice(0,300);
+function parseErrors(data) {
+  return (data.errors || [])
+    .map(e => e.message + (e.parameters?.length ? ' (' + e.parameters.map(p=>p.value).join(',') + ')' : ''))
+    .join(' | ') || JSON.stringify(data).slice(0, 400);
 }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   const { userId, item } = req.body || {};
   if (!userId || !item) return res.status(400).json({ error: 'Missing userId or item' });
-  if (!item.fulfillmentPolicyId) return res.status(400).json({ error: 'No fulfillment policy. Go to My Account → eBay Setup.' });
-  if (!item.paymentPolicyId)     return res.status(400).json({ error: 'No payment policy. Go to My Account → eBay Setup.' });
-  if (!item.returnPolicyId)      return res.status(400).json({ error: 'No return policy. Go to My Account → eBay Setup.' });
+
+  if (!item.fulfillmentPolicyId) return res.status(400).json({ error: 'No fulfillment policy selected. Go to My Account → eBay Setup.' });
+  if (!item.paymentPolicyId)     return res.status(400).json({ error: 'No payment policy selected. Go to My Account → eBay Setup.' });
+  if (!item.returnPolicyId)      return res.status(400).json({ error: 'No return policy selected. Go to My Account → eBay Setup.' });
+
   try {
     const token       = await getUserToken(userId);
-    const sku         = item.ebaySku || ('rt-'+item.id+'-'+Date.now());
-    const qty         = Math.max(1,Math.floor(Number(item.qty))||1);
-    const condition   = CONDITION_ENUM[item.condition]||'USED_GOOD';
-    const aspects     = aspectsToDict(item.itemSpecifics);
-    const description = (item.description||item.name||'').trim();
-    const images      = (item.photos||[]).slice(0,24).filter(Boolean);
-    const locationKey = await ensureLocation(token,item.postalCode);
+    const sku         = item.ebaySku || ('rt-' + item.id + '-' + Date.now());
+    const qty         = Math.max(1, Math.floor(Number(item.qty)) || 1);
+    const description = (item.description || item.name || '').trim();
+    const images      = (item.photos || []).slice(0, 24).filter(Boolean);
+    const locationKey = await ensureLocation(token, item.postalCode);
 
-    // Step 1: PUT inventory item
-    const put=await fetch(EBAY_API+'/sell/inventory/v1/inventory_item/'+encodeURIComponent(sku),{method:'PUT',headers:ebayHeaders(token),body:JSON.stringify({availability:{shipToLocationAvailability:{quantity:qty}},condition,conditionDescription:item.conditionDescription||item.condition||'',product:{title:(item.name||'').slice(0,80),description,imageUrls:images.length?images:undefined,aspects:Object.keys(aspects).length?aspects:undefined}})});
-    if(put.status>=400){const e=await put.json().catch(()=>({}));throw new Error('Inventory item: '+parseErrors(e));}
+    // Resolve condition — trading card categories have special rules
+    const { condition, conditionDescriptors } = resolveCondition(
+      item.ebayCategory, item.condition, item.itemSpecifics
+    );
 
-    // Step 2: POST offer
-    const ofr=await fetch(EBAY_API+'/sell/inventory/v1/offer',{method:'POST',headers:ebayHeaders(token),body:JSON.stringify({sku,marketplaceId:MARKETPLACE_ID,format:'FIXED_PRICE',availableQuantity:qty,categoryId:item.ebayCategory||undefined,listingDescription:description,listingPolicies:{fulfillmentPolicyId:item.fulfillmentPolicyId,paymentPolicyId:item.paymentPolicyId,returnPolicyId:item.returnPolicyId},pricingSummary:{price:{value:Number(item.price).toFixed(2),currency:'GBP'}},merchantLocationKey:locationKey,includeCatalogProductDetails:false})});
-    if(!ofr.ok){const e=await ofr.json().catch(()=>({}));throw new Error('Offer: '+parseErrors(e));}
-    const {offerId}=await ofr.json();
+    // Build aspects — excluding Grade/Professional Grader for TCG (go in conditionDescriptors)
+    const aspects = buildAspects(item.itemSpecifics, item.ebayCategory);
 
-    // Step 3: Publish
-    const pub=await fetch(EBAY_API+'/sell/inventory/v1/offer/'+offerId+'/publish',{method:'POST',headers:ebayHeaders(token),body:'{}'});
-    if(!pub.ok){const e=await pub.json().catch(()=>({}));throw new Error('Publish: '+parseErrors(e));}
-    const {listingId}=await pub.json();
-    console.log('[listing] Published',listingId,'sku',sku,'user',userId);
-    return res.status(200).json({success:true,listingId,offerId,sku,listingUrl:'https://www.ebay.co.uk/itm/'+listingId});
-  } catch(e) {
-    console.error('[listing]',e.message);
-    return res.status(500).json({error:e.message});
+    // ── Step 1: PUT inventory item ───────────────────────────────────────────
+    const inventoryBody = {
+      availability:  { shipToLocationAvailability: { quantity: qty } },
+      condition,
+      product: {
+        title:     (item.name || '').slice(0, 80),
+        description: description || undefined,
+        imageUrls:   images.length ? images : undefined,
+        aspects:     Object.keys(aspects).length ? aspects : undefined,
+      },
+    };
+    if (item.conditionDescription?.trim()) {
+      inventoryBody.conditionDescription = item.conditionDescription.trim();
+    }
+    if (conditionDescriptors?.length) {
+      inventoryBody.conditionDescriptors = conditionDescriptors;
+    }
+
+    const put = await fetch(
+      EBAY_API + '/sell/inventory/v1/inventory_item/' + encodeURIComponent(sku),
+      { method: 'PUT', headers: ebayHeaders(token), body: JSON.stringify(inventoryBody) }
+    );
+    if (put.status >= 400) {
+      const e = await put.json().catch(() => ({}));
+      throw new Error('Inventory item: ' + parseErrors(e));
+    }
+
+    // ── Step 2: POST offer ───────────────────────────────────────────────────
+    const ofr = await fetch(EBAY_API + '/sell/inventory/v1/offer', {
+      method: 'POST', headers: ebayHeaders(token),
+      body: JSON.stringify({
+        sku, marketplaceId: MARKETPLACE_ID, format: 'FIXED_PRICE',
+        availableQuantity: qty,
+        categoryId:        item.ebayCategory || undefined,
+        listingDescription: description || undefined,
+        listingPolicies: {
+          fulfillmentPolicyId: item.fulfillmentPolicyId,
+          paymentPolicyId:     item.paymentPolicyId,
+          returnPolicyId:      item.returnPolicyId,
+        },
+        pricingSummary: { price: { value: Number(item.price).toFixed(2), currency: 'GBP' } },
+        merchantLocationKey: locationKey,
+        includeCatalogProductDetails: false,
+      }),
+    });
+    if (!ofr.ok) {
+      const e = await ofr.json().catch(() => ({}));
+      throw new Error('Offer: ' + parseErrors(e));
+    }
+    const { offerId } = await ofr.json();
+
+    // ── Step 3: Publish offer ────────────────────────────────────────────────
+    const pub = await fetch(
+      EBAY_API + '/sell/inventory/v1/offer/' + offerId + '/publish',
+      { method: 'POST', headers: ebayHeaders(token), body: '{}' }
+    );
+    if (!pub.ok) {
+      const e = await pub.json().catch(() => ({}));
+      throw new Error('Publish: ' + parseErrors(e));
+    }
+    const { listingId } = await pub.json();
+    console.log('[listing] Published', listingId, 'sku', sku, 'condition', condition, 'descriptors', JSON.stringify(conditionDescriptors));
+
+    return res.status(200).json({
+      success: true, listingId, offerId, sku,
+      listingUrl: 'https://www.ebay.co.uk/itm/' + listingId,
+    });
+
+  } catch (e) {
+    console.error('[listing]', e.message);
+    return res.status(500).json({ error: e.message });
   }
 }
