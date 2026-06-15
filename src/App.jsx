@@ -1436,7 +1436,6 @@ export default function App(){
                   </div>
                 )}
                 {!ebayPolicies&&(
-                {!ebayPolicies&&(
                   <div style={{fontSize:11,color:'#6e7681'}}>
                     Follow the steps above to create your policies on eBay, then click ↻ Refresh policies.
                   </div>
