@@ -586,23 +586,16 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
                   </div>
                 </div>
 
-                {/* Postage policy + seller cost */}
-                <div style={S.row2}>
-                  <div style={S.field}>
-                    <label style={S.lbl}>Postage policy for this listing</label>
-                    {fulfillmentPolicies.length > 0
-                      ? <select style={S.inp} value={itemFulfilmentId} onChange={e=>setItemFulfilmentId(e.target.value)}>
-                          <option value="">Use default ({fulfillmentPolicies.find(p=>p.fulfillmentPolicyId===fulfillmentPolicyId)?.name||'none set'})</option>
-                          {fulfillmentPolicies.map(p=><option key={p.fulfillmentPolicyId} value={p.fulfillmentPolicyId}>{p.name}</option>)}
-                        </select>
-                      : <div style={{fontSize:11,color:'#6e7681'}}>Set up postage policies in My Account → eBay Setup first</div>
-                    }
-                  </div>
-                  <div style={S.field}>
-                    <label style={S.lbl}>Your actual postage cost ({sym})</label>
-                    <input style={S.inp} type="number" step="0.01" min="0" value={sellerPostage} onChange={e=>setSellerPostage(e.target.value)} placeholder="e.g. 0.91"/>
-                    <div style={{fontSize:10,color:'#6e7681',marginTop:2}}>What YOU pay — even if buyer gets free postage</div>
-                  </div>
+                {/* Postage policy for this listing */}
+                <div style={S.field}>
+                  <label style={S.lbl}>Postage policy for this listing</label>
+                  {fulfillmentPolicies.length > 0
+                    ? <select style={S.inp} value={itemFulfilmentId} onChange={e=>setItemFulfilmentId(e.target.value)}>
+                        <option value="">Use default ({fulfillmentPolicies.find(p=>p.fulfillmentPolicyId===fulfillmentPolicyId)?.name||'none set'})</option>
+                        {fulfillmentPolicies.map(p=><option key={p.fulfillmentPolicyId} value={p.fulfillmentPolicyId}>{p.name}</option>)}
+                      </select>
+                    : <div style={{fontSize:11,color:'#6e7681'}}>Set up postage policies in My Account → eBay Setup first</div>
+                  }
                 </div>
                 <div style={S.field}>
                   <label style={S.lbl}>Condition description (optional)</label>
