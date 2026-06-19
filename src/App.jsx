@@ -822,10 +822,8 @@ export default function App(){
         )}
 
         {/* Page content */}
-        <div className="rt-content">
-            <PageHints tab={tab} />
-
       <div className="rt-main">
+        <PageHints tab={tab} />
 
         {/* DASHBOARD */}
         {tab==='dashboard'&&(
@@ -1210,6 +1208,7 @@ export default function App(){
           </>;
         })()}
 
+      </div>
       </div>
 
       {/* MODALS */}
