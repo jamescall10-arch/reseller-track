@@ -9,6 +9,8 @@ import Dashboard from './Dashboard.jsx';
 import { EBAY_CATEGORIES, EBAY_CONDITIONS } from './ebayData.js';
 import PhotoUpload from './PhotoUpload.jsx';
 import ItemDetailModal from './ItemDetailModal.jsx';
+import Onboarding from './Onboarding.jsx';
+import PageHints from './PageHints.jsx';
 
 // ── mobile detection ─────────────────────────────────────────────────────────
 const useIsMobile = () => {
@@ -44,70 +46,82 @@ const DEFAULTS = {
 const SORT_OPTS = [['price-desc','Price ↓'],['price-asc','Price ↑'],['name','Name A–Z']];
 
 // ── styles ───────────────────────────────────────────────────────────────────
+const C = {
+  bg:      'var(--bg)',
+  surface: 'var(--surface)',
+  sur2:    'var(--surface-2)',
+  sur3:    'var(--surface-3)',
+  border:  'var(--border)',
+  bsub:    'var(--border-sub)',
+  text1:   'var(--text-1)',
+  text2:   'var(--text-2)',
+  text3:   'var(--text-3)',
+  accent:  'var(--accent)',
+  green:   'var(--green)',
+  red:     'var(--red)',
+  amber:   'var(--amber)',
+  blue:    'var(--blue)',
+};
 const S = {
-  app:     {fontFamily:'system-ui,sans-serif',background:'#0d1117',color:'#e6edf3',minHeight:'100vh',display:'flex',flexDirection:'column'},
-  nav:     {}, // handled by .rt-nav CSS class
-  navR:    {}, // handled by .rt-nav-r CSS class
-  sRow:    {display:'grid',gap:8,padding:'12px 16px',background:'#161b22',borderBottom:'1px solid #30363d'},
-  sCard:   {background:'#21262d',borderRadius:6,padding:'10px 14px',border:'1px solid #30363d'},
-  sV:      {fontSize:20,fontWeight:600,display:'block',lineHeight:1.2},
-  sL:      {fontSize:11,color:'#8b949e',marginTop:2,display:'block'},
-  main:    {}, // handled by .rt-main CSS class
-  toolbar: {display:'flex',gap:8,marginBottom:10,flexWrap:'wrap',alignItems:'center'},
+  app:     {display:'flex',height:'100vh',overflow:'hidden',background:C.bg,color:C.text1,fontFamily:"'Inter',system-ui,sans-serif"},
+  sCard:   {background:C.surface,borderRadius:'var(--radius)',padding:'14px 16px',border:`1px solid ${C.border}`},
+  sV:      {fontSize:20,fontWeight:700,display:'block',lineHeight:1.2},
+  sL:      {fontSize:11,color:C.text2,marginTop:3,display:'block'},
+  toolbar: {display:'flex',gap:8,marginBottom:16,flexWrap:'wrap',alignItems:'center'},
   sWrap:   {position:'relative',width:220,flexShrink:0},
-  sInput:  {width:'100%',padding:'7px 10px 7px 30px',border:'1px solid #30363d',borderRadius:6,background:'#21262d',color:'#e6edf3',fontSize:13,fontFamily:'system-ui',boxSizing:'border-box'},
-  sIcon:   {position:'absolute',left:9,top:'50%',transform:'translateY(-50%)',color:'#8b949e',fontSize:13,pointerEvents:'none'},
-  sClear:  {position:'absolute',right:4,top:'50%',transform:'translateY(-50%)',width:22,height:22,border:'none',borderRadius:4,background:'transparent',color:'#8b949e',cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',padding:0},
-  sel:     {padding:'6px 8px',border:'1px solid #30363d',borderRadius:6,background:'#21262d',color:'#e6edf3',fontSize:12,fontFamily:'system-ui',cursor:'pointer'},
-  addBtn:  {display:'flex',alignItems:'center',gap:5,padding:'6px 12px',border:'1px solid #238636',borderRadius:6,background:'#238636',color:'#fff',cursor:'pointer',fontSize:12,fontWeight:500,fontFamily:'system-ui',whiteSpace:'nowrap'},
-  chip:    {padding:'5px 11px',border:'1px solid #30363d',borderRadius:20,background:'transparent',color:'#8b949e',cursor:'pointer',fontSize:12,fontFamily:'system-ui'},
-  chipA:   {background:'#1f6feb',color:'#e6edf3',borderColor:'#1f6feb'},
-  catTab:  {padding:'5px 11px',border:'1px solid #30363d',borderRadius:6,background:'transparent',color:'#8b949e',cursor:'pointer',fontSize:12,fontFamily:'system-ui',whiteSpace:'nowrap'},
-  catTabA: {background:'#1f6feb',color:'#fff',borderColor:'#1f6feb',fontWeight:500},
-  tWrap:   {border:'1px solid #30363d',borderRadius:8,overflow:'hidden'},
+  sInput:  {width:'100%',padding:'7px 10px 7px 30px',border:`1px solid ${C.border}`,borderRadius:'var(--radius-sm)',background:C.sur2,color:C.text1,fontSize:12,fontFamily:'inherit',boxSizing:'border-box',outline:'none'},
+  sIcon:   {position:'absolute',left:9,top:'50%',transform:'translateY(-50%)',color:C.text3,fontSize:13,pointerEvents:'none'},
+  sClear:  {position:'absolute',right:4,top:'50%',transform:'translateY(-50%)',width:22,height:22,border:'none',borderRadius:4,background:'transparent',color:C.text3,cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',padding:0},
+  sel:     {padding:'6px 10px',border:`1px solid ${C.border}`,borderRadius:'var(--radius-sm)',background:C.sur2,color:C.text1,fontSize:12,fontFamily:'inherit',cursor:'pointer',outline:'none'},
+  addBtn:  {display:'flex',alignItems:'center',gap:6,padding:'7px 14px',border:`1px solid ${C.accent}`,borderRadius:'var(--radius-sm)',background:C.accent,color:'#fff',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit',whiteSpace:'nowrap'},
+  chip:    {padding:'4px 12px',border:`1px solid ${C.border}`,borderRadius:20,background:'transparent',color:C.text2,cursor:'pointer',fontSize:12,fontFamily:'inherit'},
+  chipA:   {background:'var(--accent-a)',color:C.accent,borderColor:C.accent},
+  catTab:  {padding:'5px 12px',border:`1px solid ${C.border}`,borderRadius:20,background:'transparent',color:C.text2,cursor:'pointer',fontSize:12,fontFamily:'inherit',whiteSpace:'nowrap'},
+  catTabA: {background:'var(--accent-a)',color:C.accent,borderColor:C.accent,fontWeight:600},
+  tWrap:   {border:`1px solid ${C.border}`,borderRadius:'var(--radius)',overflow:'hidden'},
   tbl:     {width:'100%',borderCollapse:'collapse',fontSize:12,tableLayout:'fixed'},
-  th:      {padding:'8px 10px',textAlign:'left',fontWeight:500,fontSize:11,color:'#8b949e',background:'#161b22',borderBottom:'1px solid #30363d',whiteSpace:'nowrap'},
-  td:      {padding:'6px 10px',borderBottom:'1px solid #21262d',verticalAlign:'middle'},
-  fRow:    {fontSize:11,color:'#8b949e',padding:'8px 0 0',textAlign:'right'},
-  acts:    {display:'flex',gap:3,alignItems:'center'},
-  note:    {background:'#1c2128',border:'1px solid #9e6a03',color:'#d29922',borderRadius:6,padding:'7px 10px',fontSize:11,marginBottom:10,display:'flex',alignItems:'center',gap:8},
-  field:   {marginBottom:10},
-  fLbl:    {display:'block',fontSize:11,color:'#8b949e',marginBottom:4,fontWeight:500},
-  fInp:    {width:'100%',padding:'7px 10px',border:'1px solid #30363d',borderRadius:6,background:'#21262d',color:'#e6edf3',fontSize:13,fontFamily:'system-ui'},
-  mBtn:    {padding:'7px 14px',borderRadius:6,border:'1px solid #30363d',background:'transparent',cursor:'pointer',fontSize:13,color:'#e6edf3',fontFamily:'system-ui'},
-  mBtnP:   {padding:'7px 14px',borderRadius:6,border:'1px solid #238636',background:'#238636',color:'#fff',cursor:'pointer',fontSize:13,fontWeight:500,fontFamily:'system-ui'},
+  th:      {padding:'9px 12px',textAlign:'left',fontWeight:600,fontSize:11,color:C.text2,background:C.sur2,borderBottom:`1px solid ${C.border}`,whiteSpace:'nowrap'},
+  td:      {padding:'9px 12px',borderBottom:`1px solid ${C.bsub}`,verticalAlign:'middle'},
+  fRow:    {fontSize:11,color:C.text2,padding:'8px 0 0',textAlign:'right'},
+  acts:    {display:'flex',gap:4,alignItems:'center'},
+  note:    {background:'var(--amber-a)',border:'1px solid rgba(245,158,11,0.3)',color:C.amber,borderRadius:'var(--radius-sm)',padding:'8px 12px',fontSize:11,marginBottom:10,display:'flex',alignItems:'center',gap:8},
+  field:   {marginBottom:12},
+  fLbl:    {display:'block',fontSize:11,color:C.text2,marginBottom:5,fontWeight:600},
+  fInp:    {width:'100%',padding:'8px 11px',border:`1px solid ${C.border}`,borderRadius:'var(--radius-sm)',background:C.sur2,color:C.text1,fontSize:13,fontFamily:'inherit',outline:'none'},
+  mBtn:    {padding:'7px 14px',borderRadius:'var(--radius-sm)',border:`1px solid ${C.border}`,background:'transparent',cursor:'pointer',fontSize:13,color:C.text1,fontFamily:'inherit'},
+  mBtnP:   {padding:'7px 14px',borderRadius:'var(--radius-sm)',border:`1px solid ${C.accent}`,background:C.accent,color:'#fff',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'inherit'},
   mActs:   {display:'flex',gap:8,marginTop:16,justifyContent:'flex-end'},
-  cCard:   {background:'#161b22',border:'1px solid #30363d',borderRadius:8,padding:16,marginBottom:10},
-  cH:      {fontSize:11,fontWeight:500,color:'#8b949e',marginBottom:10,textTransform:'uppercase',letterSpacing:'0.06em'},
-  bRow:    {display:'flex',justifyContent:'space-between',padding:'5px 0',fontSize:13,borderBottom:'1px solid #21262d'},
-  empty:   {textAlign:'center',padding:'40px 20px',color:'#8b949e',fontSize:13,lineHeight:1.7},
-  iCard:   {background:'#161b22',border:'1px solid #30363d',borderRadius:8,padding:'14px 16px',marginBottom:10},
-  bundleLine:{background:'#21262d',borderRadius:6,padding:'10px 12px',marginBottom:8,border:'1px solid #30363d'},
-  chk:     {width:15,height:15,cursor:'pointer',accentColor:'#1f6feb'},
+  cCard:   {background:C.surface,border:`1px solid ${C.border}`,borderRadius:'var(--radius)',padding:16,marginBottom:12},
+  cH:      {fontSize:11,fontWeight:600,color:C.text2,marginBottom:10,textTransform:'uppercase',letterSpacing:'0.07em'},
+  bRow:    {display:'flex',justifyContent:'space-between',padding:'6px 0',fontSize:13,borderBottom:`1px solid ${C.bsub}`},
+  empty:   {textAlign:'center',padding:'48px 24px',color:C.text2,fontSize:13,lineHeight:1.8},
+  iCard:   {background:C.surface,border:`1px solid ${C.border}`,borderRadius:'var(--radius)',padding:'14px 16px',marginBottom:10},
+  bundleLine:{background:C.sur2,borderRadius:'var(--radius-sm)',padding:'10px 12px',marginBottom:8,border:`1px solid ${C.border}`},
+  chk:     {width:15,height:15,cursor:'pointer',accentColor:C.accent},
+  btnSm:   {padding:'4px 10px',border:`1px solid ${C.border}`,borderRadius:'var(--radius-sm)',background:'transparent',color:C.text2,cursor:'pointer',fontSize:11,fontFamily:'inherit'},
 };
 
 // ── small components ──────────────────────────────────────────────────────────
-function NavBtn({active,onClick,children}){
-  return <button onClick={onClick} style={{
-    padding:'8px 14px',border:'1px solid transparent',borderBottom:'none',borderRadius:'6px 6px 0 0',
-    background:active?'#0d1117':'transparent',color:active?'#e6edf3':'#8b949e',cursor:'pointer',
-    fontSize:13,display:'flex',alignItems:'center',gap:6,marginBottom:-1,
-    borderColor:active?'#30363d':'transparent',fontFamily:'system-ui',whiteSpace:'nowrap',
-  }}>{children}</button>;
+function NavBtn({active,onClick,icon,badge,children}){
+  return <button onClick={onClick} className={`rt-nav-item${active?' active':''}`}>
+    {icon&&<span className="rt-nav-icon">{icon}</span>}
+    <span style={{flex:1}}>{children}</span>
+    {badge>0&&<span className="rt-nav-badge">{badge}</span>}
+  </button>;
 }
 
 function IBtn({href,onClick,title,col,children}){
-  const base={width:26,height:26,border:'1px solid #30363d',borderRadius:5,background:'transparent',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:col||'#8b949e',textDecoration:'none',flexShrink:0,fontSize:13};
+  const base={width:28,height:28,border:`1px solid var(--border)`,borderRadius:'var(--radius-sm)',background:'transparent',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:col||'var(--text-2)',textDecoration:'none',flexShrink:0,fontSize:13};
   if(href) return <a href={href} target="_blank" rel="noreferrer" style={base} title={title}>{children}</a>;
   return <button style={base} onClick={onClick} title={title}>{children}</button>;
 }
 
 function Modal({title,onClose,children,wide}){
   return(
-    <div className="rt-modal-backdrop" style={{position:'fixed',inset:0,background:'rgba(1,4,9,0.8)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200}} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+    <div className="rt-modal-backdrop" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
       <div className={wide?'rt-modal-inner':'rt-modal-inner narrow'}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
-          <span style={{fontSize:15,fontWeight:600,color:'#e6edf3'}}>{title}</span>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+          <span style={{fontSize:15,fontWeight:700,color:'var(--text-1)'}}>{title}</span>
           <button style={{...S.mBtn,padding:'3px 8px'}} onClick={onClose}>✕</button>
         </div>
         {children}
@@ -160,38 +174,7 @@ function SettingsModal({cfg,onChange,onSave,onClose,feeLabel,effectiveFeeRate,sa
           <input style={{...S.fInp,maxWidth:160}} value={cfg.postalCode||''} onChange={e=>f('postalCode',e.target.value)} placeholder="e.g. LE11 1AA"/>
           <div style={{fontSize:11,color:'#6e7681',marginTop:3}}>Used as item location on eBay listings.</div>
         </div>
-        <div style={{...S.field,gridColumn:'1/-1'}}>
-          <label style={S.fLbl}>eBay listing return policy</label>
-          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
-            <input type="checkbox" checked={!!(cfg.returnPolicy?.enabled)} onChange={e=>f('returnPolicy',{...(cfg.returnPolicy||{}),enabled:e.target.checked})} id="rpEnabled"/>
-            <label htmlFor="rpEnabled" style={{fontSize:12,color:'#e6edf3',cursor:'pointer'}}>Include return policy in listings (disable if you get "Return Policy input not applicable" errors — eBay Managed Returns users should leave this off)</label>
-          </div>
-          {cfg.returnPolicy?.enabled&&(
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginTop:4}}>
-              <div style={S.field}>
-                <label style={S.fLbl}>Returns accepted</label>
-                <select style={S.fInp} value={cfg.returnPolicy?.accepted?'yes':'no'} onChange={e=>f('returnPolicy',{...cfg.returnPolicy,accepted:e.target.value==='yes'})}>
-                  <option value="yes">Yes</option>
-                  <option value="no">No</option>
-                </select>
-              </div>
-              <div style={S.field}>
-                <label style={S.fLbl}>Returns within</label>
-                <select style={S.fInp} value={cfg.returnPolicy?.within||'Days_30'} onChange={e=>f('returnPolicy',{...cfg.returnPolicy,within:e.target.value})}>
-                  <option value="Days_30">30 days</option>
-                  <option value="Days_60">60 days</option>
-                </select>
-              </div>
-              <div style={S.field}>
-                <label style={S.fLbl}>Who pays return postage</label>
-                <select style={S.fInp} value={cfg.returnPolicy?.paidBy||'Buyer'} onChange={e=>f('returnPolicy',{...cfg.returnPolicy,paidBy:e.target.value})}>
-                  <option value="Buyer">Buyer</option>
-                  <option value="Seller">Seller</option>
-                </select>
-              </div>
-            </div>
-          )}
-        </div>
+
         <div style={{...S.field,gridColumn:'1/-1'}}>
           <label style={S.fLbl}>Standard listing description</label>
           <textarea style={{...S.fInp,minHeight:100,resize:'vertical',lineHeight:1.5}} value={cfg.listingDescription||''} onChange={e=>f('listingDescription',e.target.value)} placeholder="e.g. Fast dispatch · Secure packaging · Combined postage available · Please check my other listings!"/>
@@ -217,7 +200,7 @@ export default function App(){
   const isMobile = useIsMobile();
 
   // Mobile item card style
-  const mCard = {background:'#161b22',border:'1px solid #30363d',borderRadius:8,padding:'12px',marginBottom:8};
+  const mCard = {background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,padding:'12px',marginBottom:8};
   const mRow  = {display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8};
   const mName = {flex:1,paddingRight:8,fontWeight:600,fontSize:14,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'};
   const mSub  = {fontSize:11,color:'#8b949e',marginTop:2};
@@ -229,6 +212,41 @@ export default function App(){
   const [showAccount,setShowAccount]     = useState(false);
   const [ebayStatus,setEbayStatus]         = useState(null); // null | { connected, ebayUsername }
   const [ebayMsg,setEbayMsg]               = useState('');
+
+  // ── Onboarding ──────────────────────────────────────────────────────────────
+  const [showOnboarding, setShowOnboarding] = useState(()=>{
+    try { return !localStorage.getItem('rt_onboarded'); } catch { return false; }
+  });
+  const handleOnboardingComplete = ({storeName,currency,description}) => {
+    if(storeName) setCfg(p=>({...p,businessName:storeName}));
+    if(currency)  setCfg(p=>({...p,currency}));
+    if(description) setCfg(p=>({...p,listingDescription:description}));
+    try { localStorage.setItem('rt_onboarded','1'); } catch {}
+    setShowOnboarding(false);
+  };
+
+  // ── Help tips ──────────────────────────────────────────────────────────────
+  const [dismissedTips, setDismissedTips] = useState(()=>{
+    try { return JSON.parse(localStorage.getItem('rt_tips')||'[]'); } catch { return []; }
+  });
+  const dismissTip = (id) => {
+    const next = [...dismissedTips, id];
+    setDismissedTips(next);
+    try { localStorage.setItem('rt_tips', JSON.stringify(next)); } catch {}
+  };
+  const Tip = ({id, title, body, icon='💡'}) => {
+    if(dismissedTips.includes(id)) return null;
+    return(
+      <div className="rt-tip">
+        <span className="rt-tip-icon">{icon}</span>
+        <div className="rt-tip-content">
+          <div className="rt-tip-title">{title}</div>
+          <div>{body}</div>
+        </div>
+        <button className="rt-tip-close" onClick={()=>dismissTip(id)}>×</button>
+      </div>
+    );
+  };
   const [ebayPolicies,setEbayPolicies]     = useState(null);
   const [ebayLocation,setEbayLocation]     = useState(null);
   const [ebaySyncState,setEbaySyncState]   = useState({loading:false,msg:''});
@@ -728,56 +746,85 @@ export default function App(){
     );
   }
 
+
+  const TABS = [
+    {id:'dashboard', icon:'🏠', label:'Dashboard'},
+    {id:'inventory',  icon:'📦', label:'Inventory'},
+    {id:'listings',   icon:'🏷️',  label:'Active Listings', badge: stats.listedCount},
+    {id:'buying',     icon:'🧮', label:'Buy Calculator'},
+    {id:'sales',      icon:'💰', label:'Sales Log'},
+    {id:'pnl',        icon:'📊', label:'P&L'},
+  ];
+  const PAGE_TITLES = {dashboard:'Dashboard',inventory:'Inventory',listings:'Active Listings',buying:'Buy Calculator',sales:'Sales Log',pnl:'Profit & Loss'};
+
   return(
-    <div style={S.app}>
-      {/* Nav */}
-      {isMobile&&(
-        <div className="rt-mobile-header">
-          <span className="rt-mobile-header-logo">📦 ResellerTrack</span>
-          <div className="rt-mobile-header-actions">
-            <button style={{...S.mBtn,padding:'7px 11px',fontSize:13}} onClick={()=>setShowSpend(true)} title="Log spend">＋</button>
-            <button style={{...S.mBtn,padding:'7px 11px',fontSize:13}} onClick={()=>setShowAccount(true)} title="My account">👤</button>
-            <button style={{...S.mBtn,padding:'7px 11px',fontSize:13}} onClick={()=>{setCfgForm(cfg);setShowCfg(true);}} title="Settings">⚙️</button>
-          </div>
+    <div style={{display:'flex',height:'100vh',overflow:'hidden',background:'var(--bg)',color:'var(--text-1)',fontFamily:"'Inter',system-ui,sans-serif"}}>
+      {/* ── Sidebar ────────────────────────────────────────────────────── */}
+      <aside className="rt-sidebar">
+        <div className="rt-logo">
+          <div className="rt-logo-icon">📦</div>
+          <span className="rt-logo-text">ResellerTrack</span>
         </div>
-      )}
-      <nav className="rt-nav">
-        {[['dashboard','🏠 Dashboard'],['inventory','📦 Inventory'],['listings','🏷️ Active Listings'],['buying','🧮 Buy Calculator'],['sales','💰 Sales Log'],['pnl','📊 P&L']].map(([t,l])=>(
-          <NavBtn key={t} active={tab===t} onClick={()=>setTab(t)}>
-            {l}{t==='listings'&&stats.listedCount>0?` (${stats.listedCount})`:''}
-          </NavBtn>
-        ))}
-        <div className="rt-nav-r">
-          {effectiveFeeRate&&<span className="rt-fee">✓ Fee: {(effectiveFeeRate*100).toFixed(1)}%</span>}
-          <span className="rt-sync" style={{color:syncStatus==='error'?'#f85149':syncStatus==='saving'?'#d29922':'#3fb950'}}>
-            {syncStatus==='error'?'⚠ Sync failed':syncStatus==='saving'?'Saving…':'✓ Synced'}
-          </span>
-          <button style={{...S.mBtn,fontSize:12,padding:'5px 10px'}} onClick={()=>setShowSpend(true)}>＋ Log spend</button>
-          <button style={{...S.mBtn,fontSize:12,padding:'5px 10px'}} onClick={()=>setShowAccount(true)}>👤 Account</button>
-          <button style={{...S.mBtn,fontSize:12,padding:'5px 10px'}} onClick={()=>{setCfgForm(cfg);setShowCfg(true);}}>⚙️</button>
-        </div>
-      </nav>
-      {subStatus==='cancelled'&&(
-        <div style={{background:'#2d1c00',borderBottom:'1px solid #9e6a03',padding:'8px 16px',fontSize:12,color:'#d29922',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:8}}>
-          <span>⚠️ Your subscription is cancelled and will end on {subStatus==='cancelled'?'the next billing date':'soon'}. Your data is safe.</span>
-          <a href="https://resellertrack.lemonsqueezy.com/checkout/buy/339acfaf-9d87-427d-9869-49d3fb798dbf" style={{color:'#f0883e',fontWeight:600}}>Renew →</a>
-        </div>
-      )}
-
-      {/* Stats bar */}
-      {tab!=='dashboard'&&(
-        <div className="rt-stats">
-          {[['In stock',stats.stockCount,'#8b949e'],['Listed',stats.listedCount,'#f0883e'],['Items sold',stats.salesCount,'#e6edf3'],['Total profit',fmt(stats.profit),stats.profit>=0?'#3fb950':'#f85149']].map(([l,v,c])=>(
-            <div key={l} style={S.sCard}><span style={{...S.sV,color:c}}>{v}</span><span style={S.sL}>{l}</span></div>
+        <div className="rt-nav-section">
+          <div className="rt-nav-label">Menu</div>
+          {TABS.map(t=>(
+            <NavBtn key={t.id} active={tab===t.id} onClick={()=>setTab(t.id)} icon={t.icon} badge={t.badge}>
+              {t.label}
+            </NavBtn>
           ))}
-          <div style={{...S.sCard,cursor:'pointer'}} onClick={()=>setShowSpend(true)} title="Click to log business spend">
-            <span style={{...S.sV,color:'#f85149'}}>{fmt(stats.expenses.all)}</span>
-            <span style={S.sL}>Business costs <span style={{color:'#58a6ff',fontSize:10,marginLeft:4}}>＋ log spend</span></span>
+          <div className="rt-nav-label" style={{marginTop:20}}>Account</div>
+          <NavBtn icon="⚙️" onClick={()=>{setCfgForm(cfg);setShowCfg(true);}}>Settings</NavBtn>
+          <NavBtn icon="👤" onClick={()=>setShowAccount(true)}>My Account</NavBtn>
+          <NavBtn icon="➕" onClick={()=>setShowSpend(true)}>Log Spend</NavBtn>
+        </div>
+        <div className="rt-sidebar-footer">
+          <div className="rt-user-row" onClick={()=>setShowAccount(true)}>
+            <div className="rt-avatar">{(user?.firstName||'?')[0].toUpperCase()}</div>
+            <div>
+              <div className="rt-user-name">{user?.firstName||'Account'}</div>
+              <div className="rt-user-sub" style={{color:syncStatus==='error'?'var(--red)':syncStatus==='saving'?'var(--amber)':'var(--green)'}}>
+                {syncStatus==='error'?'⚠ Sync error':syncStatus==='saving'?'Saving…':'✓ Synced'}
+              </div>
+            </div>
           </div>
         </div>
-      )}
+      </aside>
 
-      {/* Main */}
+      {/* ── Main content area ──────────────────────────────────────────────── */}
+      <div className="rt-main-area">
+        {/* Top bar */}
+        <header className="rt-topbar">
+          <span className="rt-topbar-title">{PAGE_TITLES[tab]||tab}</span>
+          <div className="rt-topbar-actions">
+            {subStatus==='cancelled'&&<a href="https://resellertrack.lemonsqueezy.com/checkout/buy/339acfaf-9d87-427d-9869-49d3fb798dbf" style={{fontSize:11,color:'var(--amber)',background:'var(--amber-a)',padding:'3px 10px',borderRadius:20,border:'1px solid rgba(245,158,11,0.3)'}}>⚠ Subscription cancelled — Renew</a>}
+            {effectiveFeeRate&&<span style={{fontSize:11,color:'var(--green)',background:'var(--green-a)',border:'1px solid rgba(16,185,129,0.2)',padding:'3px 10px',borderRadius:20}}>Fee: {(effectiveFeeRate*100).toFixed(1)}%</span>}
+            {tab==='inventory'&&<button style={S.addBtn} onClick={doAddItem}>＋ Add Item</button>}
+            {tab==='listings'&&ebayStatus?.connected&&(
+              <button style={{...S.mBtn,fontSize:12}} onClick={syncEbayOrders} disabled={ebaySyncState.loading}>
+                {ebaySyncState.loading?'⏳ Syncing…':'↻ Sync eBay'}
+              </button>
+            )}
+            {tab==='listings'&&<button style={S.addBtn} onClick={()=>setBundleSell(true)}>📦 Bundle sale</button>}
+          </div>
+        </header>
+
+        {/* Stats bar — inside main area, below topbar */}
+        {tab!=='dashboard'&&(
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:10,padding:'14px 24px',borderBottom:'1px solid var(--border)',background:'var(--sidebar)'}}>
+            {[['In stock',stats.stockCount,'var(--text-2)'],['Listed',stats.listedCount,'var(--amber)'],['Items sold',stats.salesCount,'var(--text-1)'],['Total profit',fmt(stats.profit),stats.profit>=0?'var(--green)':'var(--red)']].map(([l,v,c])=>(
+              <div key={l} style={S.sCard}><span style={{...S.sV,color:c}}>{v}</span><span style={S.sL}>{l}</span></div>
+            ))}
+            <div style={{...S.sCard,cursor:'pointer'}} onClick={()=>setShowSpend(true)}>
+              <span style={{...S.sV,color:'var(--red)'}}>{fmt(stats.expenses.all)}</span>
+              <span style={S.sL}>Costs <span style={{color:'var(--accent)',fontSize:10}}>＋ log</span></span>
+            </div>
+          </div>
+        )}
+
+        {/* Page content */}
+        <div className="rt-content">
+            <PageHints tab={tab} />
+
       <div className="rt-main">
 
         {/* DASHBOARD */}
