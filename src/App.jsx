@@ -438,7 +438,41 @@ export default function App(){
         setItems(p=>p.map(x=>x.id===matched.id?{...x,status:'sold'}:x));
         synced++;
       });
-      setEbaySyncState({loading:false,msg:synced>0?'✓ '+synced+' sale'+(synced!==1?'s':'')+' synced from eBay':'No new sales found on eBay'});
+      // ── Import currently active eBay listings not yet tracked in the app ──────
+      const activeListings = data.activeListings||[];
+      let imported = 0;
+      activeListings.forEach(listing => {
+        const alreadyTracked = items.some(it =>
+          (listing.ebayItemId && it.ebayItemId===listing.ebayItemId) ||
+          (listing.ebaySku    && it.ebaySku===listing.ebaySku)
+        );
+        if(alreadyTracked) return;
+        setItems(p=>[{
+          id:                Date.now()+Math.floor(Math.random()*10000)+imported,
+          name:               listing.title||'eBay listing',
+          categoryId:         cats[0]?.id||null,
+          price:               listing.price||0,
+          qty:                  listing.qty||1,
+          buyCost:              0,
+          condition:            '',
+          ebayCategory:         '',
+          photos:               [],
+          sellerPostageCost:    +(cfg.postage||0),
+          status:               'listed',
+          dateStr:              todayEnGB(),
+          listedAt:             todayEnGB(),
+          ebayItemId:           listing.ebayItemId,
+          ebaySku:              listing.ebaySku,
+          ebayListingUrl:       listing.listingUrl,
+          importedFromEbay:     true,
+        },...p]);
+        imported++;
+      });
+
+      const parts = [];
+      if(synced>0)   parts.push(synced+' sale'+(synced!==1?'s':'')+' synced');
+      if(imported>0) parts.push(imported+' active listing'+(imported!==1?'s':'')+' imported');
+      setEbaySyncState({loading:false,msg:parts.length?'✓ '+parts.join(', '):'No new sales or listings found on eBay'});
     } catch(e) {
       setEbaySyncState({loading:false,msg:'✗ '+e.message});
     }
@@ -798,6 +832,7 @@ export default function App(){
           <div className="rt-topbar-actions">
             {subStatus==='cancelled'&&<a href="https://resellertrack.lemonsqueezy.com/checkout/buy/339acfaf-9d87-427d-9869-49d3fb798dbf" style={{fontSize:11,color:'var(--amber)',background:'var(--amber-a)',padding:'3px 10px',borderRadius:20,border:'1px solid rgba(245,158,11,0.3)'}}>⚠ Subscription cancelled — Renew</a>}
             {effectiveFeeRate&&<span style={{fontSize:11,color:'var(--green)',background:'var(--green-a)',border:'1px solid rgba(16,185,129,0.2)',padding:'3px 10px',borderRadius:20}}>Fee: {(effectiveFeeRate*100).toFixed(1)}%</span>}
+            {(tab==='dashboard'||tab==='inventory')&&<button style={S.mBtn} onClick={()=>setShowSpend(true)}>💸 Log Spend</button>}
             {tab==='inventory'&&<button style={S.addBtn} onClick={doAddItem}>＋ Add Item</button>}
             {tab==='listings'&&ebayStatus?.connected&&(
               <button style={{...S.mBtn,fontSize:12}} onClick={syncEbayOrders} disabled={ebaySyncState.loading}>
