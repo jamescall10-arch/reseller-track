@@ -45,14 +45,23 @@ const DEFAULTS = {
   postageCosts:{}, // { [fulfillmentPolicyId]: yourActualCostToPost }
   freeListingsPerMonth:0, feePerListing:0.35,
 };
-// Resolve what an item actually costs to post: prefer the cost set against its
-// specific eBay postage policy, then a manually-entered per-item cost, then the
-// flat global default — in that order of accuracy.
+// Resolve what an item actually costs to post — checked in order of accuracy:
+// 1. A cost you've explicitly set for this item's eBay postage policy (Business Policy listings)
+// 2. A cost you've explicitly set for this item's shipping service type (ad-hoc / "free postage" listings —
+//    eBay's own ShippingServiceCost is what the BUYER pays, which is £0 for free-postage listings and tells
+//    us nothing about what it actually costs you, so it's deliberately never used as a source of truth here)
+// 3. A specific manually-entered cost on the item itself, if it's a real non-zero figure
+// 4. The flat default postage cost in Settings
 const resolvePostageCost = (item, cfg) => {
   const policyId = item?.fulfillmentPolicyId;
   const policyCost = policyId ? cfg?.postageCosts?.[policyId] : null;
   if(policyCost!=null && policyCost!=='' && !isNaN(policyCost)) return +policyCost;
-  if(item?.sellerPostageCost!=null) return +item.sellerPostageCost;
+
+  const svcName = item?.shippingServiceName;
+  const svcCost = svcName ? cfg?.postageCosts?.[svcName] : null;
+  if(svcCost!=null && svcCost!=='' && !isNaN(svcCost)) return +svcCost;
+
+  if(item?.sellerPostageCost!=null && +item.sellerPostageCost > 0) return +item.sellerPostageCost;
   return +(cfg?.postage||0);
 };
 const SORT_OPTS = [['price-desc','Price ↓'],['price-asc','Price ↑'],['name','Name A–Z']];
@@ -571,7 +580,11 @@ export default function App(){
           // Backfill postage from the listing's actual configured shipping cost — only if
           // the item doesn't already have a real cost recorded (don't overwrite a value
           // the user deliberately edited, and don't overwrite with the £0 flat-default placeholder)
-          if(listing.shippingServiceCost!=null && (existing.sellerPostageCost==null || existing.sellerPostageCost===+(cfg.postage||0))){
+          // Only treat the listing's ShippingServiceCost as a real cost when it's non-zero —
+          // £0 almost always means "free postage to buyer", which says nothing about what it
+          // actually costs the seller to post. A genuine free-postage cost still needs the
+          // per-postage-type mapping below, since eBay has no record of what you actually pay.
+          if(listing.shippingServiceCost>0 && (existing.sellerPostageCost==null || existing.sellerPostageCost===+(cfg.postage||0))){
             patch.sellerPostageCost = listing.shippingServiceCost;
           }
           if(listing.shippingServiceName && !existing.shippingServiceName) patch.shippingServiceName = listing.shippingServiceName;
@@ -592,7 +605,7 @@ export default function App(){
           condition:            '',
           ebayCategory:         '',
           photos:               [],
-          sellerPostageCost:    listing.shippingServiceCost!=null ? listing.shippingServiceCost : +(cfg.postage||0),
+          sellerPostageCost:    listing.shippingServiceCost>0 ? listing.shippingServiceCost : null,
           shippingServiceName:  listing.shippingServiceName||'',
           status:               'listed',
           dateStr:              todayEnGB(),
@@ -649,7 +662,7 @@ export default function App(){
       const needsDeepLookup = sales.filter(s => {
         if(!s.fromEbaySync || salesPostageUpdates.has(s.id)) return false;
         const it = items.find(x=>x.id===s.itemId);
-        if(!it || it.status!=='sold' || !it.ebayItemId || it.fulfillmentPolicyId) return false;
+        if(!it || it.status!=='sold' || !it.ebayItemId || it.fulfillmentPolicyId || it.deepLookupDone) return false;
         return it.sellerPostageCost==null || it.sellerPostageCost===+(cfg.postage||0);
       });
       const allDeepItemIds = [...new Set(needsDeepLookup.map(s=>items.find(x=>x.id===s.itemId)?.ebayItemId).filter(Boolean))];
@@ -665,11 +678,10 @@ export default function App(){
             const it = items.find(x=>x.id===s.itemId);
             const info = it ? shipping[it.ebayItemId] : null;
             if(!it || !info) return;
-            const patch = {};
+            const patch = { deepLookupDone:true }; // never re-query this item via GetItem again — the answer won't change
             if(info.fulfillmentPolicyId) patch.fulfillmentPolicyId = info.fulfillmentPolicyId;
-            if(info.shippingServiceCost!=null) patch.sellerPostageCost = info.shippingServiceCost;
+            if(info.shippingServiceCost>0) patch.sellerPostageCost = info.shippingServiceCost;
             if(info.shippingServiceName) patch.shippingServiceName = info.shippingServiceName;
-            if(!Object.keys(patch).length) return;
             itemPatches.set(it.id, patch);
             const newPostage = resolvePostageCost({...it,...patch}, cfg);
             if(Math.abs(newPostage-(s.postage||0))>0.004){
@@ -837,6 +849,16 @@ export default function App(){
   },[items,thisMonthKey]);
   const freeListingsRemaining = Math.max(0, (cfg.freeListingsPerMonth||0) - listingsThisMonth);
   const freeListingsExceeded  = listingsThisMonth >= (cfg.freeListingsPerMonth||0);
+
+  // Distinct shipping service "types" seen across items that have no Business Policy —
+  // most listings that offer free postage to the buyer fall into this bucket, since
+  // eBay's own cost field is £0 there and tells us nothing about what it costs you.
+  const distinctShippingServices = useMemo(() => {
+    const seen = new Set();
+    items.forEach(it => { if(it.shippingServiceName && !it.fulfillmentPolicyId) seen.add(it.shippingServiceName); });
+    return [...seen].sort();
+  },[items]);
+  const prettifyServiceName = s => s.replace(/([a-z])([A-Z])/g,'$1 $2').replace(/_/g,' ');
 
   const listingFeesCard = (
     <div style={{...S.tWrap,padding:'16px 18px',marginBottom:14,borderRadius:'var(--radius)',border:'1px solid var(--border)',background:'var(--surface)'}}>
@@ -1931,6 +1953,35 @@ export default function App(){
                                 onChange={e=>{
                                   const v=e.target.value;
                                   setCfg(prev=>({...prev,postageCosts:{...(prev.postageCosts||{}),[p.fulfillmentPolicyId]: v===''?undefined:v}}));
+                                }}
+                                placeholder={(cfg.postage||1).toFixed(2)}/>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Per-service-type postage cost — for listings without a Business Policy,
+                        most commonly ones offering "free postage" to the buyer. eBay's cost field
+                        for these is always £0, so there's nothing to detect automatically here —
+                        these have to be entered manually based on what the postage actually costs you. */}
+                    {distinctShippingServices.length>0&&(
+                      <div style={{display:'flex',flexDirection:'column',gap:3,marginTop:4}}>
+                        <label style={{fontSize:10,color:'var(--text-2)'}}>Your actual cost by postage type (incl. "free postage" listings)</label>
+                        <div style={{fontSize:10,color:'var(--text-3)',marginBottom:2,lineHeight:1.5}}>
+                          These listings don't use a named Business Policy, so eBay has no cost on record for them — likely because
+                          you offer free postage to the buyer. Enter what each postage type actually costs you to send.
+                        </div>
+                        <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                          {distinctShippingServices.map(svc=>(
+                            <div key={svc} style={{display:'flex',alignItems:'center',gap:8}}>
+                              <span style={{fontSize:11,color:'var(--text-1)',flex:1}}>{prettifyServiceName(svc)}</span>
+                              <span style={{fontSize:11,color:'var(--text-3)'}}>{sym}</span>
+                              <input style={{...S.fInp,width:70,fontSize:11,padding:'5px 6px'}} type="number" step="0.01" min="0"
+                                value={cfg.postageCosts?.[svc]??''}
+                                onChange={e=>{
+                                  const v=e.target.value;
+                                  setCfg(prev=>({...prev,postageCosts:{...(prev.postageCosts||{}),[svc]: v===''?undefined:v}}));
                                 }}
                                 placeholder={(cfg.postage||1).toFixed(2)}/>
                             </div>
