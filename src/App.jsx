@@ -251,6 +251,7 @@ export default function App(){
   const [ebayLocation,setEbayLocation]     = useState(null);
   const [ebaySyncState,setEbaySyncState]   = useState({loading:false,msg:''});
   const saveTimer              = useRef(null);
+  const syncInProgress         = useRef(false);
 
   // Nav
   const [tab,setTab] = useState('dashboard');
@@ -399,6 +400,8 @@ export default function App(){
 
   // ── Sync eBay orders ─────────────────────────────────────────────────────────
   const runEbaySync = async ({ days=null, historyOnly=false, label='' } = {}) => {
+    if(syncInProgress.current) return; // synchronous guard — state-based disabled isn't instant
+    syncInProgress.current = true;
     setEbaySyncState({loading:true,msg:''});
     let hadError = false;
     try {
@@ -411,8 +414,26 @@ export default function App(){
       if(!r.ok) throw new Error(data.error||'Sync failed');
 
       const orders = data.orders||[];
-      let synced = 0, created = 0;
       const now = Date.now();
+
+      // Build a lookup of every eBay identifier we already track, ONCE, up front.
+      // Every new item we decide to create also gets added to this same set before
+      // moving to the next one — so duplicate eBay IDs can never slip through within
+      // a single sync, no matter how many items are being processed.
+      const seenItemIds = new Set(items.map(it=>it.ebayItemId).filter(Boolean));
+      const seenSkus    = new Set(items.map(it=>it.ebaySku).filter(Boolean));
+      const isKnown = (ebayItemId, ebaySku) =>
+        (ebayItemId && seenItemIds.has(ebayItemId)) || (ebaySku && seenSkus.has(ebaySku));
+      const markKnown = (ebayItemId, ebaySku) => {
+        if(ebayItemId) seenItemIds.add(ebayItemId);
+        if(ebaySku)    seenSkus.add(ebaySku);
+      };
+
+      let synced = 0, created = 0, imported = 0;
+      const newSoldItems  = [];
+      const newSales      = [];
+      const soldUpdates   = new Map(); // itemId -> patch
+      const salesToReplace = new Set();
 
       orders.forEach((order,idx) => {
         const matched = items.find(it =>
@@ -425,7 +446,7 @@ export default function App(){
         if(matched){
           // Known tracked item — log the sale and move it to sold, refreshing data on resync
           const sellerPost = matched.sellerPostageCost||cfg.postage||0;
-          const sale = {
+          newSales.push({
             id:          now+idx,
             itemId:      matched.id,
             itemName:    matched.name,
@@ -442,9 +463,9 @@ export default function App(){
             ebayOrderId: order.orderId,
             fromEbaySync:true,
             restore:     {itemId:matched.id,name:matched.name,price:matched.price,qty:order.qty||1,status:'listed',dateStr:matched.dateStr,categoryId:matched.categoryId},
-          };
-          setSales(p=>[sale,...p.filter(s=>s.ebayOrderId!==order.orderId)]);
-          setItems(p=>p.map(x=>x.id===matched.id?{...x,status:'sold'}:x));
+          });
+          salesToReplace.add(order.orderId);
+          soldUpdates.set(matched.id, {status:'sold'});
           synced++;
         } else {
           // No tracked item for this order — only create one if we haven't already
@@ -452,7 +473,7 @@ export default function App(){
           const alreadyImported = sales.some(s=>s.ebayOrderId===order.orderId);
           if(alreadyImported) return;
           const newItemId = now+idx+1000000;
-          setItems(p=>[{
+          newSoldItems.push({
             id:                newItemId,
             name:              order.title||'eBay sale',
             categoryId:        cats[0]?.id||null,
@@ -468,8 +489,8 @@ export default function App(){
             ebayItemId:        order.ebayItemId,
             ebaySku:           order.ebaySku,
             importedFromEbay:  true,
-          },...p]);
-          const sale = {
+          });
+          newSales.push({
             id:          now+idx,
             itemId:      newItemId,
             itemName:    order.title||'eBay sale',
@@ -486,23 +507,19 @@ export default function App(){
             ebayOrderId: order.orderId,
             fromEbaySync:true,
             importedHistorical:true,
-          };
-          setSales(p=>[sale,...p]);
+          });
           created++;
         }
       });
 
       // ── Import currently active eBay listings not yet tracked in the app ──────
       const activeListings = data.activeListings||[];
-      let imported = 0;
-      activeListings.forEach(listing => {
-        const alreadyTracked = items.some(it =>
-          (listing.ebayItemId && it.ebayItemId===listing.ebayItemId) ||
-          (listing.ebaySku    && it.ebaySku===listing.ebaySku)
-        );
-        if(alreadyTracked) return;
-        setItems(p=>[{
-          id:                Date.now()+Math.floor(Math.random()*10000)+imported,
+      const newListedItems = [];
+      activeListings.forEach((listing,idx) => {
+        if(isKnown(listing.ebayItemId, listing.ebaySku)) return;
+        markKnown(listing.ebayItemId, listing.ebaySku);
+        newListedItems.push({
+          id:                now+idx+2000000,
           name:               listing.title||'eBay listing',
           categoryId:         cats[0]?.id||null,
           price:               listing.price||0,
@@ -519,9 +536,20 @@ export default function App(){
           ebaySku:              listing.ebaySku,
           ebayListingUrl:       listing.listingUrl,
           importedFromEbay:     true,
-        },...p]);
+        });
         imported++;
       });
+
+      // ── Single batched state update — one re-render instead of hundreds ───────
+      if(newSoldItems.length || newListedItems.length || soldUpdates.size){
+        setItems(p => {
+          const updated = p.map(x => soldUpdates.has(x.id) ? {...x,...soldUpdates.get(x.id)} : x);
+          return [...newSoldItems, ...newListedItems, ...updated];
+        });
+      }
+      if(newSales.length){
+        setSales(p => [...newSales, ...p.filter(s=>!salesToReplace.has(s.ebayOrderId))]);
+      }
 
       const parts = [];
       if(synced>0)   parts.push(synced+' sale'+(synced!==1?'s':'')+' synced');
@@ -534,6 +562,8 @@ export default function App(){
     } catch(e) {
       hadError = true;
       setEbaySyncState({loading:false,msg:'✗ '+e.message});
+    } finally {
+      syncInProgress.current = false;
     }
     setTimeout(()=>setEbaySyncState(s=>({...s,msg:''})), hadError ? 15000 : 6000);
   };
@@ -542,6 +572,37 @@ export default function App(){
   const importFullSalesHistory = () => {
     if(!confirm('This will scan up to 2 years of eBay order history and import any sales not already tracked in ResellerTrack. Item cost will default to £0 for imported sales — edit them afterwards to add your true cost. Continue?')) return;
     runEbaySync({ days:730, historyOnly:true, label:'Full history import' });
+  };
+
+  // ── Cleanup: collapse duplicate eBay-imported items sharing the same ebayItemId ──
+  // (e.g. from a sync that was accidentally triggered twice before the previous
+  // run had finished writing its items). Keeps one record per ebayItemId, preferring
+  // the one with the most data filled in (cost, photos, category) if they differ.
+  const duplicateEbayItemCount = useMemo(() => {
+    const seen = new Map();
+    let dupes = 0;
+    items.forEach(it => {
+      if(!it.ebayItemId) return;
+      const key = it.status+':'+it.ebayItemId; // separate sold vs listed — both can legitimately coexist for multi-qty items
+      if(seen.has(key)) dupes++;
+      else seen.set(key, true);
+    });
+    return dupes;
+  }, [items]);
+
+  const removeDuplicateEbayImports = () => {
+    if(!confirm(`Remove ${duplicateEbayItemCount} duplicate eBay-imported item${duplicateEbayItemCount!==1?'s':''}? This keeps the most complete copy of each and only removes exact duplicates (same eBay item, same status).`)) return;
+    setItems(prev => {
+      const bestByKey = new Map(); // key -> item, picks the most "complete" one
+      const completeness = it => (it.photos?.length||0) + (it.buyCost>0?1:0) + (it.ebayCategory?1:0) + (it.categoryId?1:0);
+      prev.forEach(it => {
+        if(!it.ebayItemId){ bestByKey.set('__keep__'+it.id, it); return; } // never touch non-eBay items
+        const key = it.status+':'+it.ebayItemId;
+        const existing = bestByKey.get(key);
+        if(!existing || completeness(it) > completeness(existing)) bestByKey.set(key, it);
+      });
+      return [...bestByKey.values()];
+    });
   };
 
   // ── Fetch subscription status ──────────────────────────────────────────────
@@ -1632,6 +1693,18 @@ export default function App(){
                 <button style={{...S.mBtn,width:'100%',justifyContent:'center',fontSize:12,padding:'8px'}}
                   onClick={importFullSalesHistory} disabled={ebaySyncState.loading}>
                   {ebaySyncState.loading?'⏳ Importing…':'📜 Import full sales history'}
+                </button>
+              </div>
+            )}
+            {duplicateEbayItemCount>0&&(
+              <div style={{background:'var(--amber-a)',border:'1px solid rgba(245,158,11,0.3)',borderRadius:8,padding:'12px 14px'}}>
+                <div style={{fontSize:12,fontWeight:600,color:'var(--amber)',marginBottom:4}}>⚠ {duplicateEbayItemCount} duplicate eBay import{duplicateEbayItemCount!==1?'s':''} found</div>
+                <div style={{fontSize:11,color:'var(--text-2)',marginBottom:8,lineHeight:1.5}}>
+                  Likely from a sync that ran twice. Safe to clean up — this only merges exact duplicates of the same eBay listing.
+                </div>
+                <button style={{...S.mBtn,width:'100%',justifyContent:'center',fontSize:12,padding:'8px',color:'var(--amber)',borderColor:'var(--amber)'}}
+                  onClick={removeDuplicateEbayImports}>
+                  🧹 Remove {duplicateEbayItemCount} duplicate{duplicateEbayItemCount!==1?'s':''}
                 </button>
               </div>
             )}
