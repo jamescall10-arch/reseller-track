@@ -403,6 +403,7 @@ export default function App(){
     try {
       const r    = await fetch('/api/ebay/sync?userId='+encodeURIComponent(userId));
       const data = await r.json();
+      console.log('[eBay sync] response:', data);
       if(!r.ok) throw new Error(data.error||'Sync failed');
       const orders = data.orders||[];
       let synced = 0;
@@ -844,6 +845,21 @@ export default function App(){
             {tab==='listings'&&<button style={S.addBtn} onClick={()=>setBundleSell(true)}>📦 Bundle sale</button>}
           </div>
         </header>
+
+        {/* eBay sync result banner — visible feedback after pressing Sync eBay */}
+        {ebaySyncState.msg&&(
+          <div style={{
+            padding:'10px 24px',
+            fontSize:12,
+            display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,
+            background: ebaySyncState.msg.startsWith('✗') ? 'var(--red-a)' : ebaySyncState.msg.includes('⚠') ? 'var(--amber-a)' : 'var(--green-a)',
+            borderBottom: `1px solid ${ebaySyncState.msg.startsWith('✗') ? 'rgba(239,68,68,0.3)' : ebaySyncState.msg.includes('⚠') ? 'rgba(245,158,11,0.3)' : 'rgba(16,185,129,0.3)'}`,
+            color: ebaySyncState.msg.startsWith('✗') ? 'var(--red)' : ebaySyncState.msg.includes('⚠') ? 'var(--amber)' : 'var(--green)',
+          }}>
+            <span>{ebaySyncState.msg}</span>
+            <button onClick={()=>setEbaySyncState(s=>({...s,msg:''}))} style={{background:'none',border:'none',color:'inherit',cursor:'pointer',fontSize:14,opacity:0.7,flexShrink:0}}>✕</button>
+          </div>
+        )}
 
         {/* Stats bar — inside main area, below topbar */}
         {tab!=='dashboard'&&(
