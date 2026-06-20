@@ -66,7 +66,7 @@ const S = {
   badge:   (color) => ({ display:'inline-block',background:`${color}15`,color,border:`1px solid ${color}40`,borderRadius:20,padding:'2px 10px',fontSize:11,fontWeight:600,flexShrink:0 }),
 };
 
-export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees, ebayConnected, userId, returnPolicy, fulfillmentPolicyId, paymentPolicyId, returnPolicyId, fulfillmentPolicies=[], onSave, onClose, todayEnGB }){
+export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees, ebayConnected, userId, returnPolicy, fulfillmentPolicyId, paymentPolicyId, returnPolicyId, fulfillmentPolicies=[], listingsThisMonth=0, onSave, onClose, todayEnGB }){
   const [form, setForm] = useState({
     name:         item.name         || '',
     price:        String(item.price || ''),
@@ -287,6 +287,64 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
           ebaySku:            data.sku,
           fulfillmentPolicyId: itemFulfilmentId || fulfillmentPolicyId,
           ebayOfferId:      data.offerId,
+          sellerPostageCost: parseFloat(sellerPostage)||0,
+        }, true);
+      } else {
+        setPublishResult({ success:false, error: data.error || 'Unknown error' });
+      }
+    } catch (e) {
+      setPublishResult({ success:false, error: e.message });
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const isLiveListing  = item.status === 'listed' && !!item.ebayItemId;
+  const canUpdateLive  = isLiveListing && !!item.ebaySku;
+
+  const handleUpdateLive = async () => {
+    setPublishing(true);
+    setPublishResult(null);
+    try {
+      const res = await fetch('/api/ebay/listing', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({
+          userId,
+          action: 'update',
+          item: {
+            ...item,
+            name:                form.name.trim(),
+            price:               priceNum,
+            qty:                 Math.max(1, parseInt(form.qty, 10) || 1),
+            condition:           form.condition,
+            ebayCategory:        form.ebayCategory,
+            photos:              form.photos,
+            description:         previewDesc,
+            itemSpecifics:       validSpecifics,
+            postalCode:          postalCode.trim(),
+            fulfillmentPolicyId: itemFulfilmentId || fulfillmentPolicyId,
+            paymentPolicyId,
+            returnPolicyId,
+            conditionDescription: conditionDesc,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPublishResult({ success:true, updated:true, listingUrl:data.listingUrl||item.ebayListingUrl });
+        onSave({
+          ...item,
+          name:           form.name.trim(),
+          price:          priceNum,
+          qty:            Math.max(1, parseInt(form.qty, 10) || 1),
+          buyCost:        +buyCostNum.toFixed(2),
+          condition:      form.condition,
+          ebayCategory:   form.ebayCategory,
+          photos:         form.photos,
+          itemSpecifics,
+          fulfillmentPolicyId: itemFulfilmentId || fulfillmentPolicyId,
+          ebayOfferId:    data.offerId || item.ebayOfferId,
           sellerPostageCost: parseFloat(sellerPostage)||0,
         }, true);
       } else {
@@ -537,30 +595,47 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
             </div>
           )}
 
-          {/* Publish to eBay */}
+          {/* Publish to eBay / Live listing editor */}
           <div style={S.section}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:showPublish?14:0}}>
               <div>
-                <div style={{fontSize:13,fontWeight:600,color:'var(--text-1)'}}>🏷 Publish to eBay</div>
-                <div style={{fontSize:11,color:'var(--text-2)',marginTop:2}}>Create a live listing directly from ResellerTrack</div>
+                <div style={{fontSize:13,fontWeight:600,color:'var(--text-1)'}}>
+                  {isLiveListing ? '🏷 Live on eBay' : '🏷 Publish to eBay'}
+                </div>
+                <div style={{fontSize:11,color:'var(--text-2)',marginTop:2}}>
+                  {isLiveListing
+                    ? (canUpdateLive ? 'Edit the fields above, then save changes to update the live listing' : "This listing wasn't created through ResellerTrack")
+                    : 'Create a live listing directly from ResellerTrack'}
+                </div>
               </div>
               <button style={{...S.btn,fontSize:12,padding:'5px 10px'}} onClick={()=>setShowPublish(p=>!p)}>
                 {showPublish?'▲ Hide':'▼ Show'}
               </button>
             </div>
 
-            {showPublish&&(
+            {showPublish&&isLiveListing&&!canUpdateLive&&(
+              <div style={{...S.note,borderColor:'var(--border)',color:'var(--text-2)',background:'var(--surface)'}}>
+                <span style={{marginRight:4}}>ℹ️</span>
+                This listing was imported from eBay rather than published through the app, so it has no ResellerTrack
+                listing record to update. Edit it directly on eBay, then use <strong style={{color:'var(--text-1)'}}>↻ Sync eBay</strong> to
+                refresh the price and quantity shown here. Your local notes, cost and category in ResellerTrack are unaffected and can still be edited and saved normally.
+              </div>
+            )}
+
+            {showPublish&&(!isLiveListing||canUpdateLive)&&(
               <div style={{display:'flex',flexDirection:'column',gap:12}}>
 
-                {/* Readiness checklist */}
-                <div style={{display:'flex',flexDirection:'column',gap:5}}>
-                  {checks.map(c=>(
-                    <div key={c.label} style={{display:'flex',alignItems:'center',gap:8,fontSize:12}}>
-                      <span style={{color:c.ok?'var(--green)':'var(--red)',fontSize:14,minWidth:14}}>{c.ok?'✓':'✗'}</span>
-                      <span style={{color:c.ok?'var(--text-2)':'var(--text-1)'}}>{c.label}</span>
-                    </div>
-                  ))}
-                </div>
+                {/* Readiness checklist — only relevant before first publish */}
+                {!isLiveListing&&(
+                  <div style={{display:'flex',flexDirection:'column',gap:5}}>
+                    {checks.map(c=>(
+                      <div key={c.label} style={{display:'flex',alignItems:'center',gap:8,fontSize:12}}>
+                        <span style={{color:c.ok?'var(--green)':'var(--red)',fontSize:14,minWidth:14}}>{c.ok?'✓':'✗'}</span>
+                        <span style={{color:c.ok?'var(--text-2)':'var(--text-1)'}}>{c.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {/* Disclaimer */}
                 <div style={{...S.note,borderColor:'var(--border)',color:'var(--text-2)',background:'var(--surface)'}}>
@@ -601,22 +676,45 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
                   }
                 </div>
 
-                {/* Publish result */}
+                {/* Result */}
                 {publishResult?.success&&(
                   <div style={S.success}>
-                    <div style={{fontWeight:600,marginBottom:4}}>✓ Listed on eBay!</div>
-                    <div>Listing ID: {publishResult.ebayItemId} · <a href={publishResult.listingUrl} target="_blank" rel="noreferrer" style={{color:'var(--green)'}}>View listing on eBay ↗</a></div>
+                    <div style={{fontWeight:600,marginBottom:4}}>{publishResult.updated?'✓ Changes saved to eBay!':'✓ Listed on eBay!'}</div>
+                    <div>{!publishResult.updated&&publishResult.ebayItemId&&<>Listing ID: {publishResult.ebayItemId} · </>}<a href={publishResult.listingUrl} target="_blank" rel="noreferrer" style={{color:'var(--green)'}}>View listing on eBay ↗</a></div>
                   </div>
                 )}
                 {publishResult?.error&&(
                   <div style={S.error}>
-                    <div style={{fontWeight:600,marginBottom:4}}>✗ Listing failed</div>
+                    <div style={{fontWeight:600,marginBottom:4}}>✗ {isLiveListing?'Update failed':'Listing failed'}</div>
                     <div>{publishResult.error}</div>
                     <div style={{marginTop:6,fontSize:11,color:'var(--red)',opacity:.7}}>Check the checklist above, review item specifics, and ensure your eBay account is in good standing.</div>
                   </div>
                 )}
 
-                {!publishResult?.success&&(
+                {/* Listing fee estimate — only relevant before first publish */}
+                {!isLiveListing&&cfg.freeListingsPerMonth>0&&(()=>{
+                  const remaining = Math.max(0, cfg.freeListingsPerMonth - listingsThisMonth);
+                  const willBeFree = remaining > 0;
+                  return (
+                    <div style={{...S.note,borderColor:willBeFree?'rgba(16,185,129,0.3)':'rgba(245,158,11,0.3)',color:willBeFree?'var(--green)':'var(--amber)',background:willBeFree?'var(--green-a)':'var(--amber-a)'}}>
+                      {willBeFree
+                        ? <>✓ Free — you have {remaining} free listing{remaining!==1?'s':''} left this month</>
+                        : <>⚠ Your free listings are used up this month — publishing this will cost approximately {sym}{(cfg.feePerListing||0).toFixed(2)}</>}
+                    </div>
+                  );
+                })()}
+                {!isLiveListing&&!cfg.freeListingsPerMonth&&cfg.feePerListing>0&&(
+                  <div style={{...S.note,borderColor:'var(--border)',color:'var(--text-2)',background:'var(--surface)'}}>
+                    ℹ️ Publishing this will cost approximately {sym}{(cfg.feePerListing||0).toFixed(2)} in listing fees (no free allowance set in Settings)
+                  </div>
+                )}
+
+                {!publishResult?.success&&isLiveListing&&(
+                  <button style={{...S.btnE,opacity:publishing?0.5:1,cursor:publishing?'not-allowed':'pointer'}} disabled={publishing} onClick={handleUpdateLive}>
+                    {publishing?'Saving…':'💾 Save changes to eBay'}
+                  </button>
+                )}
+                {!publishResult?.success&&!isLiveListing&&(
                   <button
                     style={{...S.btnE,opacity:(!readyToPublish||publishing)?0.5:1,cursor:(!readyToPublish||publishing)?'not-allowed':'pointer'}}
                     disabled={!readyToPublish||publishing}
