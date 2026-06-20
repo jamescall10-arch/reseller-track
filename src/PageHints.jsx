@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 const STORAGE_KEY = 'rt-dismissed-hints-v1';
 
@@ -6,7 +6,7 @@ const getDismissed = () => {
   try { return new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')); }
   catch { return new Set(); }
 };
-const dismiss = (id) => {
+const dismissStored = (id) => {
   try {
     const d = getDismissed();
     d.add(id);
@@ -14,97 +14,58 @@ const dismiss = (id) => {
   } catch {}
 };
 
-// ── Hint definitions per page ─────────────────────────────────────────────────
+// ── Hint definitions per page — short, pointer-style tips ────────────────────
 const PAGE_HINTS = {
   dashboard: [
-    {
-      id: 'dash-overview',
-      icon: '📊',
-      title: 'Your Dashboard',
-      body: 'This is your command centre — key metrics, monthly P&L, revenue charts and recent activity are all here. Stats update live as you add items and log sales.',
-    },
+    { id: 'dash-overview', icon: '📊', title: 'Your Dashboard', body: 'Live metrics, monthly P&L and charts. Updates as you add items and log sales.' },
   ],
   inventory: [
-    {
-      id: 'inv-add-item',
-      icon: '📦',
-      title: 'Adding items',
-      body: 'Click + Add Item (top right) to log any item you\'ve bought to resell. Fill in the name, what you paid for it (item cost), and the price you want to sell it for.',
-    },
-    {
-      id: 'inv-categories',
-      icon: '🗂️',
-      title: 'Using categories',
-      body: 'The tab bar shows your categories. Click + next to them to create a new one — organise by type (e.g. Pokémon Cards, Clothing, Electronics). Items can only belong to one category at a time.',
-    },
-    {
-      id: 'inv-detail',
-      icon: '🔍',
-      title: 'Item details & eBay listing',
-      body: 'Click any item name (highlighted in orange) to open the detail view. From there you can add photos, set an eBay category, fill in required listing fields and publish directly to eBay.',
-    },
+    { id: 'inv-add-item', icon: '📦', title: 'Add items here', body: 'Use the + Add Item button (top right) to log anything you\'ve bought to resell.' },
+    { id: 'inv-categories', icon: '🗂️', title: 'Categories', body: 'The tabs above organise stock by type. Click + to create a new category.' },
+    { id: 'inv-detail', icon: '🔍', title: 'Item details', body: 'Click an item name (in orange) to add photos, set eBay category and publish a listing.' },
   ],
   listings: [
-    {
-      id: 'list-what',
-      icon: '🏷️',
-      title: 'Active Listings',
-      body: 'Items appear here once you\'ve marked them as listed (or once eBay publishing succeeds). This is your live inventory — things you\'ve got for sale right now.',
-    },
-    {
-      id: 'list-sync',
-      icon: '🔄',
-      title: 'Sync from eBay',
-      body: 'Click ↻ Sync from eBay to automatically pull in recent sales. Matched items get moved to the Sales Log with real eBay fee data and the correct payout amount.',
-    },
-    {
-      id: 'list-actions',
-      icon: '✅',
-      title: 'Marking as sold',
-      body: 'Use the ✓ button on any item to log a manual sale, or push it back to inventory with the ← button. The 🗑️ button removes it entirely. Bundle multiple items into one sale using the 📦 Bundle Sale button.',
-    },
+    { id: 'list-sync', icon: '🔄', title: 'Sync from eBay', body: '↻ Sync from eBay pulls in recent sales automatically with real fee data.' },
+    { id: 'list-actions', icon: '✅', title: 'Listing actions', body: '✓ logs a sale, ← sends back to inventory, 🗑️ removes it. Tick multiple for a bundle sale.' },
   ],
   buying: [
-    {
-      id: 'buy-calc',
-      icon: '🧮',
-      title: 'Buy Calculator',
-      body: 'Enter the price you\'re thinking of selling an item for and it\'ll work backwards — showing the maximum you should pay for it to hit your target profit margin after eBay fees and postage.',
-    },
+    { id: 'buy-calc', icon: '🧮', title: 'Buy Calculator', body: 'Enter what you could sell an item for — we\'ll show the max you should pay for it.' },
   ],
   sales: [
-    {
-      id: 'sales-log',
-      icon: '💰',
-      title: 'Sales Log',
-      body: 'Every sale you log or sync from eBay appears here. Each entry shows sale price, eBay fees, your item cost, and true profit. Click any row to see the full breakdown or to refund/remove it.',
-    },
+    { id: 'sales-log', icon: '💰', title: 'Sales Log', body: 'Every logged or synced sale appears here with fees and true profit. Click a row for details.' },
   ],
   pnl: [
-    {
-      id: 'pnl-overview',
-      icon: '📈',
-      title: 'Profit & Loss',
-      body: 'Monthly view of your revenue, eBay fees, expenses and net profit. The tax year summary at the top is useful for self-assessment. Refunded sales are excluded from totals.',
-    },
+    { id: 'pnl-overview', icon: '📈', title: 'Profit & Loss', body: 'Monthly revenue, fees, expenses and net profit — handy for tax records.' },
   ],
 };
 
-// ── Component ─────────────────────────────────────────────────────────────────
+// ── Component — fixed-position, non-blocking corner overlay ──────────────────
 export default function PageHints({ tab }) {
   const [dismissed, setDismissed] = useState(() => getDismissed());
+  const [visible, setVisible]     = useState([]);
+
+  useEffect(() => {
+    const hints = (PAGE_HINTS[tab] || []).filter(h => !dismissed.has(h.id));
+    setVisible(hints);
+  }, [tab]); // eslint-disable-line
 
   const dismissHint = useCallback((id) => {
-    dismiss(id);
+    dismissStored(id);
     setDismissed(prev => new Set([...prev, id]));
+    setVisible(prev => prev.filter(h => h.id !== id));
   }, []);
 
-  const hints = (PAGE_HINTS[tab] || []).filter(h => !dismissed.has(h.id));
-  if (!hints.length) return null;
+  const dismissAll = useCallback(() => {
+    visible.forEach(h => dismissStored(h.id));
+    setDismissed(prev => new Set([...prev, ...visible.map(h => h.id)]));
+    setVisible([]);
+  }, [visible]);
+
+  if (!visible.length) return null;
 
   return (
-    <div className="rt-hint-wrap">
-      {hints.map(h => (
+    <div className="rt-hint-overlay">
+      {visible.map(h => (
         <div key={h.id} className="rt-hint">
           <span className="rt-hint-icon">{h.icon}</span>
           <div className="rt-hint-body">
@@ -114,6 +75,11 @@ export default function PageHints({ tab }) {
           <button className="rt-hint-close" onClick={() => dismissHint(h.id)} title="Dismiss">✕</button>
         </div>
       ))}
+      {visible.length > 1 && (
+        <div className="rt-hint-dismiss-all">
+          <button onClick={dismissAll}>Dismiss all</button>
+        </div>
+      )}
     </div>
   );
 }
