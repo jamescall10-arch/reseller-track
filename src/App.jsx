@@ -398,16 +398,22 @@ export default function App(){
   };
 
   // ── Sync eBay orders ─────────────────────────────────────────────────────────
-  const syncEbayOrders = async () => {
+  const runEbaySync = async ({ days=null, historyOnly=false, label='' } = {}) => {
     setEbaySyncState({loading:true,msg:''});
+    let hadError = false;
     try {
-      const r    = await fetch('/api/ebay/sync?userId='+encodeURIComponent(userId));
+      let url = '/api/ebay/sync?userId='+encodeURIComponent(userId);
+      if(days)        url += '&days='+days;
+      if(historyOnly) url += '&historyOnly=true';
+      const r    = await fetch(url);
       const data = await r.json();
       console.log('[eBay sync] response:', data);
       if(!r.ok) throw new Error(data.error||'Sync failed');
+
       const orders = data.orders||[];
-      let synced = 0;
+      let synced = 0, created = 0;
       const now = Date.now();
+
       orders.forEach((order,idx) => {
         const matched = items.find(it =>
           it.status==='listed' && (
@@ -415,30 +421,77 @@ export default function App(){
             (order.ebaySku    && it.ebaySku===order.ebaySku)
           )
         );
-        if(!matched) return;
-        const sellerPost = matched.sellerPostageCost||cfg.postage||0;
-        const sale = {
-          id:          now+idx,
-          itemId:      matched.id,
-          itemName:    matched.name,
-          categoryId:  matched.categoryId,
-          listedPrice: matched.price,
-          soldPrice:   order.soldPrice,
-          ebayFees:    order.ebayFees,
-          moneyIn:     order.moneyIn,
-          postage:     sellerPost,
-          buyCost:     matched.buyCost||0,
-          profit:      +(order.moneyIn-sellerPost).toFixed(2),
-          qty:         order.qty||1,
-          date:        order.saleDate,
-          ebayOrderId: order.orderId,
-          fromEbaySync:true,
-          restore:     {itemId:matched.id,name:matched.name,price:matched.price,qty:order.qty||1,status:'listed',dateStr:matched.dateStr,categoryId:matched.categoryId},
-        };
-        setSales(p=>[sale,...p.filter(s=>s.ebayOrderId!==order.orderId)]);
-        setItems(p=>p.map(x=>x.id===matched.id?{...x,status:'sold'}:x));
-        synced++;
+
+        if(matched){
+          // Known tracked item — log the sale and move it to sold, refreshing data on resync
+          const sellerPost = matched.sellerPostageCost||cfg.postage||0;
+          const sale = {
+            id:          now+idx,
+            itemId:      matched.id,
+            itemName:    matched.name,
+            categoryId:  matched.categoryId,
+            listedPrice: matched.price,
+            soldPrice:   order.soldPrice,
+            ebayFees:    order.ebayFees,
+            moneyIn:     order.moneyIn,
+            postage:     sellerPost,
+            buyCost:     matched.buyCost||0,
+            profit:      +(order.moneyIn-sellerPost).toFixed(2),
+            qty:         order.qty||1,
+            date:        order.saleDate,
+            ebayOrderId: order.orderId,
+            fromEbaySync:true,
+            restore:     {itemId:matched.id,name:matched.name,price:matched.price,qty:order.qty||1,status:'listed',dateStr:matched.dateStr,categoryId:matched.categoryId},
+          };
+          setSales(p=>[sale,...p.filter(s=>s.ebayOrderId!==order.orderId)]);
+          setItems(p=>p.map(x=>x.id===matched.id?{...x,status:'sold'}:x));
+          synced++;
+        } else {
+          // No tracked item for this order — only create one if we haven't already
+          // imported it on a previous sync (avoids duplicate items on repeat syncs)
+          const alreadyImported = sales.some(s=>s.ebayOrderId===order.orderId);
+          if(alreadyImported) return;
+          const newItemId = now+idx+1000000;
+          setItems(p=>[{
+            id:                newItemId,
+            name:              order.title||'eBay sale',
+            categoryId:        cats[0]?.id||null,
+            price:             order.soldPrice||0,
+            qty:               order.qty||1,
+            buyCost:           0,
+            condition:         '',
+            ebayCategory:      '',
+            photos:            [],
+            sellerPostageCost: +(cfg.postage||0),
+            status:            'sold',
+            dateStr:           order.saleDate||todayEnGB(),
+            ebayItemId:        order.ebayItemId,
+            ebaySku:           order.ebaySku,
+            importedFromEbay:  true,
+          },...p]);
+          const sale = {
+            id:          now+idx,
+            itemId:      newItemId,
+            itemName:    order.title||'eBay sale',
+            categoryId:  cats[0]?.id||null,
+            listedPrice: order.soldPrice||0,
+            soldPrice:   order.soldPrice,
+            ebayFees:    order.ebayFees,
+            moneyIn:     order.moneyIn,
+            postage:     cfg.postage||0,
+            buyCost:     0,
+            profit:      +(order.moneyIn-(cfg.postage||0)).toFixed(2),
+            qty:         order.qty||1,
+            date:        order.saleDate,
+            ebayOrderId: order.orderId,
+            fromEbaySync:true,
+            importedHistorical:true,
+          };
+          setSales(p=>[sale,...p]);
+          created++;
+        }
       });
+
       // ── Import currently active eBay listings not yet tracked in the app ──────
       const activeListings = data.activeListings||[];
       let imported = 0;
@@ -472,14 +525,23 @@ export default function App(){
 
       const parts = [];
       if(synced>0)   parts.push(synced+' sale'+(synced!==1?'s':'')+' synced');
+      if(created>0)  parts.push(created+' past sale'+(created!==1?'s':'')+' imported');
       if(imported>0) parts.push(imported+' active listing'+(imported!==1?'s':'')+' imported');
-      let msg = parts.length ? '✓ '+parts.join(', ') : 'No new sales or listings found on eBay';
-      if(data.activeListingsError) msg += (parts.length?' — ':'') + '⚠ Active listings: '+data.activeListingsError;
+      let msg = (label?label+' — ':'') + (parts.length ? '✓ '+parts.join(', ') : 'No new sales or listings found on eBay');
+      if(data.activeListingsError){ msg += (parts.length?' — ':'') + '⚠ Active listings: '+data.activeListingsError; hadError=true; }
+      if(data.truncated){ msg += ` (more than ${data.ordersFetched} orders exist — run again to continue importing)`; hadError=true; }
       setEbaySyncState({loading:false,msg});
     } catch(e) {
+      hadError = true;
       setEbaySyncState({loading:false,msg:'✗ '+e.message});
     }
-    setTimeout(()=>setEbaySyncState(s=>({...s,msg:''})), data.activeListingsError ? 15000 : 6000);
+    setTimeout(()=>setEbaySyncState(s=>({...s,msg:''})), hadError ? 15000 : 6000);
+  };
+
+  const syncEbayOrders        = () => runEbaySync();
+  const importFullSalesHistory = () => {
+    if(!confirm('This will scan up to 2 years of eBay order history and import any sales not already tracked in ResellerTrack. Item cost will default to £0 for imported sales — edit them afterwards to add your true cost. Continue?')) return;
+    runEbaySync({ days:730, historyOnly:true, label:'Full history import' });
   };
 
   // ── Fetch subscription status ──────────────────────────────────────────────
@@ -1560,6 +1622,19 @@ export default function App(){
                   }}>Connect eBay account</button>
               }
             </div>
+            {ebayStatus?.connected&&(
+              <div style={{background:'var(--surface-2)',borderRadius:8,padding:'12px 14px'}}>
+                <div style={{fontSize:11,color:'var(--text-2)',marginBottom:6}}>Past sales</div>
+                <div style={{fontSize:11,color:'var(--text-3)',marginBottom:8,lineHeight:1.5}}>
+                  The regular sync only checks the last 90 days. Use this once to pull in older sales
+                  that happened before you started using ResellerTrack — covers up to 2 years.
+                </div>
+                <button style={{...S.mBtn,width:'100%',justifyContent:'center',fontSize:12,padding:'8px'}}
+                  onClick={importFullSalesHistory} disabled={ebaySyncState.loading}>
+                  {ebaySyncState.loading?'⏳ Importing…':'📜 Import full sales history'}
+                </button>
+              </div>
+            )}
             <button style={{...S.mBtn,textAlign:'center',width:'100%',padding:'10px'}} onClick={handleOpenPortal}>
               🔗 Manage or cancel subscription
             </button>
