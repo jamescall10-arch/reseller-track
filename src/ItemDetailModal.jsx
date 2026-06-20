@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import PhotoUpload from './PhotoUpload.jsx';
-import { EBAY_CONDITIONS, SHIPPING_SERVICES, EBAY_CATEGORIES, getDefaultItemSpecifics } from './ebayData.js';
+import { EBAY_CONDITIONS, EBAY_CATEGORIES, getDefaultItemSpecifics } from './ebayData.js';
 import EbayCategoryPicker from './EbayCategoryPicker.jsx';
 
 // Trading card categories requiring graded/ungraded UI
@@ -46,23 +46,23 @@ import { isListingDeadZone } from './bundleUtils.js';
 
 const S = {
   overlay: { position:'fixed',inset:0,background:'rgba(1,4,9,0.85)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200,padding:'16px' },
-  box:     { background:'#161b22',border:'1px solid #30363d',borderRadius:12,width:'100%',maxWidth:700,maxHeight:'92vh',overflowY:'auto',display:'flex',flexDirection:'column' },
-  header:  { display:'flex',justifyContent:'space-between',alignItems:'center',padding:'16px 20px',borderBottom:'1px solid #30363d',flexShrink:0 },
+  box:     { background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,width:'100%',maxWidth:700,maxHeight:'92vh',overflowY:'auto',display:'flex',flexDirection:'column' },
+  header:  { display:'flex',justifyContent:'space-between',alignItems:'center',padding:'16px 20px',borderBottom:'1px solid var(--border)',flexShrink:0 },
   body:    { padding:'20px',display:'flex',flexDirection:'column',gap:14,flex:1 },
-  footer:  { padding:'14px 20px',borderTop:'1px solid #30363d',display:'flex',gap:8,justifyContent:'flex-end',flexShrink:0,flexWrap:'wrap' },
+  footer:  { padding:'14px 20px',borderTop:'1px solid var(--border)',display:'flex',gap:8,justifyContent:'flex-end',flexShrink:0,flexWrap:'wrap' },
   field:   { display:'flex',flexDirection:'column',gap:4 },
-  lbl:     { fontSize:11,color:'#8b949e',fontWeight:500 },
-  inp:     { padding:'8px 10px',border:'1px solid #30363d',borderRadius:6,background:'#21262d',color:'#e6edf3',fontSize:13,fontFamily:'system-ui',width:'100%',boxSizing:'border-box' },
+  lbl:     { fontSize:11,color:'var(--text-2)',fontWeight:500 },
+  inp:     { padding:'8px 10px',border:'1px solid var(--border)',borderRadius:6,background:'var(--surface-2)',color:'var(--text-1)',fontSize:13,fontFamily:'system-ui',width:'100%',boxSizing:'border-box' },
   row2:    { display:'grid',gridTemplateColumns:'1fr 1fr',gap:12 },
   row3:    { display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12 },
-  btn:     { padding:'8px 16px',borderRadius:6,border:'1px solid #30363d',background:'transparent',cursor:'pointer',fontSize:13,color:'#e6edf3',fontFamily:'system-ui',whiteSpace:'nowrap' },
-  btnP:    { padding:'8px 16px',borderRadius:6,border:'1px solid #238636',background:'#238636',color:'#fff',cursor:'pointer',fontSize:13,fontWeight:500,fontFamily:'system-ui',whiteSpace:'nowrap' },
-  btnE:    { padding:'8px 16px',borderRadius:6,border:'1px solid #f0883e',background:'#f0883e',color:'#fff',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'system-ui',whiteSpace:'nowrap' },
-  btnSm:   { padding:'4px 10px',borderRadius:5,border:'1px solid #30363d',background:'transparent',cursor:'pointer',fontSize:11,color:'#8b949e',fontFamily:'system-ui' },
-  note:    { background:'#1c2128',border:'1px solid #9e6a03',color:'#d29922',borderRadius:6,padding:'7px 10px',fontSize:11,display:'flex',gap:8,alignItems:'flex-start' },
-  success: { background:'#1a2f1a',border:'1px solid #238636',color:'#3fb950',borderRadius:6,padding:'10px 14px',fontSize:12 },
-  error:   { background:'#2d1c00',border:'1px solid #f85149',color:'#f85149',borderRadius:6,padding:'10px 14px',fontSize:12 },
-  section: { background:'#0d1117',border:'1px solid #30363d',borderRadius:8,padding:'16px' },
+  btn:     { padding:'8px 16px',borderRadius:6,border:'1px solid var(--border)',background:'transparent',cursor:'pointer',fontSize:13,color:'var(--text-1)',fontFamily:'system-ui',whiteSpace:'nowrap' },
+  btnP:    { padding:'8px 16px',borderRadius:6,border:'1px solid var(--green)',background:'var(--green)',color:'#fff',cursor:'pointer',fontSize:13,fontWeight:500,fontFamily:'system-ui',whiteSpace:'nowrap' },
+  btnE:    { padding:'8px 16px',borderRadius:6,border:'1px solid var(--accent)',background:'var(--accent)',color:'#fff',cursor:'pointer',fontSize:13,fontWeight:600,fontFamily:'system-ui',whiteSpace:'nowrap' },
+  btnSm:   { padding:'4px 10px',borderRadius:5,border:'1px solid var(--border)',background:'transparent',cursor:'pointer',fontSize:11,color:'var(--text-2)',fontFamily:'system-ui' },
+  note:    { background:'var(--surface-2)',border:'1px solid var(--amber)',color:'var(--amber)',borderRadius:6,padding:'7px 10px',fontSize:11,display:'flex',gap:8,alignItems:'flex-start' },
+  success: { background:'var(--green-a)',border:'1px solid var(--green)',color:'var(--green)',borderRadius:6,padding:'10px 14px',fontSize:12 },
+  error:   { background:'var(--amber-a)',border:'1px solid var(--red)',color:'var(--red)',borderRadius:6,padding:'10px 14px',fontSize:12 },
+  section: { background:'var(--bg)',border:'1px solid var(--border)',borderRadius:8,padding:'16px' },
   badge:   (color) => ({ display:'inline-block',background:`${color}15`,color,border:`1px solid ${color}40`,borderRadius:20,padding:'2px 10px',fontSize:11,fontWeight:600,flexShrink:0 }),
 };
 
@@ -171,8 +171,6 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
 
   const [showPreview,     setShowPreview]     = useState(false);
   const [showPublish,     setShowPublish]      = useState(false);
-  const [shippingService, setShippingService]  = useState(item.shippingService || (SHIPPING_SERVICES.find(s=>s.default)?.id || SHIPPING_SERVICES[0].id));
-  const [postageCost,     setPostageCost]      = useState(String(cfg?.postage || '1.00'));
   const [sellerPostage,   setSellerPostage]    = useState(String(item.sellerPostageCost || cfg?.postage || '1.00'));
   const [itemFulfilmentId, setItemFulfilmentId] = useState(item.fulfillmentPolicyId || fulfillmentPolicyId || '');
   const [conditionDesc,   setConditionDesc]    = useState(item.conditionDescription || '');
@@ -302,8 +300,8 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
   };
 
   const statusBadge = item.status === 'listed'
-    ? { label:'Active listing', color:'#f0883e' }
-    : { label:'In stock', color:'#8b949e' };
+    ? { label:'Active listing', color:'var(--accent)' }
+    : { label:'In stock', color:'var(--text-2)' };
 
   return (
     <div style={S.overlay} onClick={e=>{ if(e.target===e.currentTarget) onClose(); }}>
@@ -311,9 +309,9 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
 
         <div style={S.header}>
           <div style={{display:'flex',alignItems:'center',gap:10,overflow:'hidden'}}>
-            <span style={{fontSize:15,fontWeight:600,color:'#e6edf3',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{form.name||'Unnamed item'}</span>
+            <span style={{fontSize:15,fontWeight:600,color:'var(--text-1)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{form.name||'Unnamed item'}</span>
             <span style={S.badge(statusBadge.color)}>{statusBadge.label}</span>
-            {item.ebayItemId&&<span style={S.badge('#3fb950')}>Live on eBay</span>}
+            {item.ebayItemId&&<span style={S.badge('var(--green)')}>Live on eBay</span>}
           </div>
           <button style={{...S.btn,padding:'3px 8px',flexShrink:0}} onClick={onClose}>✕</button>
         </div>
@@ -328,9 +326,9 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
 
           {/* Name */}
           <div style={S.field}>
-            <label style={S.lbl}>Item name <span style={{color:'#6e7681'}}>(max 80 characters on eBay)</span></label>
+            <label style={S.lbl}>Item name <span style={{color:'var(--text-3)'}}>(max 80 characters on eBay)</span></label>
             <input style={S.inp} value={form.name} onChange={e=>f('name',e.target.value)} placeholder="Item name" maxLength={80}/>
-            <div style={{fontSize:10,color:form.name.length>70?'#d29922':'#6e7681'}}>{form.name.length}/80 characters</div>
+            <div style={{fontSize:10,color:form.name.length>70?'var(--amber)':'var(--text-3)'}}>{form.name.length}/80 characters</div>
           </div>
 
           {/* Price / Qty / Buy cost */}
@@ -351,10 +349,10 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
 
           {deadZone&&<div style={S.note}>⚠️ Prices between £10–£12.30 often earn less after signed postage. Consider pricing above or below this range.</div>}
           {priceNum>0&&(
-            <div style={{background:'#21262d',borderRadius:6,padding:'8px 12px',fontSize:12,display:'flex',gap:16,flexWrap:'wrap'}}>
-              <span style={{color:'#8b949e'}}>Est. fees: <strong style={{color:'#f85149'}}>{sym}{fees.toFixed(2)}</strong></span>
-              <span style={{color:'#8b949e'}}>Est. profit after cost: <strong style={{color:estProfit>=0?'#3fb950':'#f85149'}}>{sym}{estProfit.toFixed(2)}</strong></span>
-              {catLabel&&<span style={{color:'#8b949e'}}>App category: <strong style={{color:'#e6edf3'}}>{catLabel}</strong></span>}
+            <div style={{background:'var(--surface-2)',borderRadius:6,padding:'8px 12px',fontSize:12,display:'flex',gap:16,flexWrap:'wrap'}}>
+              <span style={{color:'var(--text-2)'}}>Est. fees: <strong style={{color:'var(--red)'}}>{sym}{fees.toFixed(2)}</strong></span>
+              <span style={{color:'var(--text-2)'}}>Est. profit after cost: <strong style={{color:estProfit>=0?'var(--green)':'var(--red)'}}>{sym}{estProfit.toFixed(2)}</strong></span>
+              {catLabel&&<span style={{color:'var(--text-2)'}}>App category: <strong style={{color:'var(--text-1)'}}>{catLabel}</strong></span>}
             </div>
           )}
 
@@ -382,12 +380,12 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
 
           {/* TCG Graded/Ungraded panel */}
           {TCG_CATS_MODAL.has(form.ebayCategory) && (
-            <div style={{background:'#1c2128',border:'1px solid #30363d',borderRadius:8,padding:'12px'}}>
+            <div style={{background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:8,padding:'12px'}}>
               <div style={{fontSize:12,fontWeight:600,marginBottom:10}}>Card type</div>
               <div style={{display:'flex',gap:8,marginBottom:10}}>
                 {['Ungraded','Graded'].map(opt=>(
                   <button key={opt} type="button"
-                    style={{padding:'6px 16px',borderRadius:6,border:`1px solid ${cardGraded===(opt==='Graded')?'#1f6feb':'#30363d'}`,background:cardGraded===(opt==='Graded')?'#1f6feb':'transparent',color:'#e6edf3',cursor:'pointer',fontSize:12,fontWeight:cardGraded===(opt==='Graded')?600:400}}
+                    style={{padding:'6px 16px',borderRadius:6,border:`1px solid ${cardGraded===(opt==='Graded')?'var(--accent)':'var(--border)'}`,background:cardGraded===(opt==='Graded')?'var(--accent)':'transparent',color:'var(--text-1)',cursor:'pointer',fontSize:12,fontWeight:cardGraded===(opt==='Graded')?600:400}}
                     onClick={()=>{ const g=opt==='Graded'; setCardGraded(g); syncGradedSpecifics(g,graderVal,gradeVal); }}
                   >{opt}</button>
                 ))}
@@ -408,8 +406,8 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
                   </div>
                 </div>
               ) : (
-                <div style={{fontSize:11,color:'#8b949e'}}>
-                  Card condition maps from the <strong style={{color:'#e6edf3'}}>Condition</strong> field above
+                <div style={{fontSize:11,color:'var(--text-2)'}}>
+                  Card condition maps from the <strong style={{color:'var(--text-1)'}}>Condition</strong> field above
                 </div>
               )}
             </div>
@@ -435,12 +433,12 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
               <label style={S.lbl}>Required listing details</label>
               {loadingSpecifics
-                ? <span style={{fontSize:11,color:'#8b949e'}}>⏳ Loading…</span>
+                ? <span style={{fontSize:11,color:'var(--text-2)'}}>⏳ Loading…</span>
                 : form.ebayCategory&&ebayConnected&&<button type="button" style={S.btnSm} onClick={()=>fetchCategorySpecifics(form.ebayCategory)}>↻ Refresh</button>
               }
             </div>
             {!form.ebayCategory && (
-              <div style={{fontSize:11,color:'#6e7681'}}>Select an eBay category above to load required fields</div>
+              <div style={{fontSize:11,color:'var(--text-3)'}}>Select an eBay category above to load required fields</div>
             )}
             {itemSpecifics.map((s,i)=>{
               const spec = categorySpecifics?.find(cs=>cs.name.toLowerCase()===s.name.toLowerCase());
@@ -458,8 +456,8 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
               return(
                 <div key={i} style={{display:'grid',gridTemplateColumns:'1fr 1fr auto',gap:6,marginBottom:4}}>
                   <div style={{position:'relative'}}>
-                    <div style={{...S.inp,borderColor:isRequired?'#d29922':'#30363d',color:'#8b949e',display:'flex',alignItems:'center',paddingRight:36,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.name}</div>
-                    {isRequired&&<span style={{position:'absolute',right:6,top:'50%',transform:'translateY(-50%)',fontSize:9,color:'#d29922',background:'#1c2128',padding:'1px 3px',borderRadius:3}}>REQ</span>}
+                    <div style={{...S.inp,borderColor:isRequired?'var(--amber)':'var(--border)',color:'var(--text-2)',display:'flex',alignItems:'center',paddingRight:36,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.name}</div>
+                    {isRequired&&<span style={{position:'absolute',right:6,top:'50%',transform:'translateY(-50%)',fontSize:9,color:'var(--amber)',background:'var(--surface-2)',padding:'1px 3px',borderRadius:3}}>REQ</span>}
                   </div>
                   {hasValues && displayValues.length > 25
                     ? (() => {
@@ -479,10 +477,10 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
                               onBlur={() => setTimeout(()=>setSpecificSearch(p=>{const n={...p};delete n[i];return n;}), 150)}
                             />
                             {specificSearch[i] !== undefined && filtered.length > 0 && (
-                              <div style={{position:'absolute',top:'100%',left:0,right:0,background:'#1c2128',border:'1px solid #30363d',borderRadius:6,zIndex:99,maxHeight:180,overflowY:'auto',marginTop:2}}>
+                              <div style={{position:'absolute',top:'100%',left:0,right:0,background:'var(--surface-2)',border:'1px solid var(--border)',borderRadius:6,zIndex:99,maxHeight:180,overflowY:'auto',marginTop:2}}>
                                 {filtered.map(v=>(
                                   <div key={v}
-                                    style={{padding:'7px 10px',cursor:'pointer',fontSize:12,borderBottom:'1px solid #21262d'}}
+                                    style={{padding:'7px 10px',cursor:'pointer',fontSize:12,borderBottom:'1px solid var(--surface-2)'}}
                                     onMouseDown={()=>{updateSpecific(i,'value',v);setSpecificSearch(p=>{const n={...p};delete n[i];return n;});}}
                                   >{v}</div>
                                 ))}
@@ -500,7 +498,7 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
                       </select>
                     : <input style={S.inp} value={s.value} onChange={e=>updateSpecific(i,'value',e.target.value)} placeholder="Enter value"/>
                   }
-                  <button type="button" style={{...S.btnSm,color:'#f85149',padding:'4px 8px'}} onClick={()=>removeSpecific(i)}>X</button>
+                  <button type="button" style={{...S.btnSm,color:'var(--red)',padding:'4px 8px'}} onClick={()=>removeSpecific(i)}>X</button>
                 </div>
               );
             })}
@@ -512,29 +510,29 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
             {showPreview?'▲ Hide':'▼ Show'} eBay listing preview
           </button>
           {showPreview&&(
-            <div style={{background:'#0d1117',border:'1px solid #30363d',borderRadius:8,padding:'14px 16px'}}>
+            <div style={{background:'var(--bg)',border:'1px solid var(--border)',borderRadius:8,padding:'14px 16px'}}>
               {form.photos.length>0
                 ? <div style={{display:'flex',gap:8,marginBottom:12,overflowX:'auto',paddingBottom:4}}>
-                    {form.photos.map((url,i)=><img key={i} src={url} alt="" style={{width:80,height:80,objectFit:'cover',borderRadius:6,flexShrink:0,border:'1px solid #30363d'}}/>)}
+                    {form.photos.map((url,i)=><img key={i} src={url} alt="" style={{width:80,height:80,objectFit:'cover',borderRadius:6,flexShrink:0,border:'1px solid var(--border)'}}/>)}
                   </div>
-                : <div style={{background:'#21262d',borderRadius:6,height:80,display:'flex',alignItems:'center',justifyContent:'center',color:'#6e7681',fontSize:12,marginBottom:12}}>No photos — add photos above</div>
+                : <div style={{background:'var(--surface-2)',borderRadius:6,height:80,display:'flex',alignItems:'center',justifyContent:'center',color:'var(--text-3)',fontSize:12,marginBottom:12}}>No photos — add photos above</div>
               }
-              <div style={{fontSize:17,fontWeight:700,color:'#e6edf3',marginBottom:6,lineHeight:1.3}}>{form.name||'Item name'}</div>
+              <div style={{fontSize:17,fontWeight:700,color:'var(--text-1)',marginBottom:6,lineHeight:1.3}}>{form.name||'Item name'}</div>
               <div style={{display:'flex',gap:12,marginBottom:8,flexWrap:'wrap'}}>
-                <span style={{fontSize:22,fontWeight:700,color:'#f0883e'}}>{sym}{priceNum.toFixed(2)}</span>
-                {form.condition&&<span style={{fontSize:12,color:'#8b949e',alignSelf:'center'}}>{form.condition}</span>}
-                {catName&&<span style={{fontSize:11,color:'#6e7681',alignSelf:'center'}}>{catName}</span>}
+                <span style={{fontSize:22,fontWeight:700,color:'var(--accent)'}}>{sym}{priceNum.toFixed(2)}</span>
+                {form.condition&&<span style={{fontSize:12,color:'var(--text-2)',alignSelf:'center'}}>{form.condition}</span>}
+                {catName&&<span style={{fontSize:11,color:'var(--text-3)',alignSelf:'center'}}>{catName}</span>}
               </div>
               {validSpecifics.length>0&&(
                 <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:8}}>
                   {validSpecifics.map(s=>(
-                    <span key={s.name} style={{background:'#21262d',borderRadius:4,padding:'2px 8px',fontSize:11,color:'#8b949e'}}><strong>{s.name}:</strong> {s.value}</span>
+                    <span key={s.name} style={{background:'var(--surface-2)',borderRadius:4,padding:'2px 8px',fontSize:11,color:'var(--text-2)'}}><strong>{s.name}:</strong> {s.value}</span>
                   ))}
                 </div>
               )}
               {previewDesc
-                ? <div style={{fontSize:12,color:'#8b949e',lineHeight:1.7,whiteSpace:'pre-wrap',borderTop:'1px solid #30363d',paddingTop:8}}>{previewDesc}</div>
-                : <div style={{fontSize:11,color:'#6e7681',borderTop:'1px solid #30363d',paddingTop:8}}>No description — add one in ⚙️ Settings</div>
+                ? <div style={{fontSize:12,color:'var(--text-2)',lineHeight:1.7,whiteSpace:'pre-wrap',borderTop:'1px solid var(--border)',paddingTop:8}}>{previewDesc}</div>
+                : <div style={{fontSize:11,color:'var(--text-3)',borderTop:'1px solid var(--border)',paddingTop:8}}>No description — add one in ⚙️ Settings</div>
               }
             </div>
           )}
@@ -543,8 +541,8 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
           <div style={S.section}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:showPublish?14:0}}>
               <div>
-                <div style={{fontSize:13,fontWeight:600,color:'#e6edf3'}}>🏷 Publish to eBay</div>
-                <div style={{fontSize:11,color:'#8b949e',marginTop:2}}>Create a live listing directly from ResellerTrack</div>
+                <div style={{fontSize:13,fontWeight:600,color:'var(--text-1)'}}>🏷 Publish to eBay</div>
+                <div style={{fontSize:11,color:'var(--text-2)',marginTop:2}}>Create a live listing directly from ResellerTrack</div>
               </div>
               <button style={{...S.btn,fontSize:12,padding:'5px 10px'}} onClick={()=>setShowPublish(p=>!p)}>
                 {showPublish?'▲ Hide':'▼ Show'}
@@ -558,32 +556,18 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
                 <div style={{display:'flex',flexDirection:'column',gap:5}}>
                   {checks.map(c=>(
                     <div key={c.label} style={{display:'flex',alignItems:'center',gap:8,fontSize:12}}>
-                      <span style={{color:c.ok?'#3fb950':'#f85149',fontSize:14,minWidth:14}}>{c.ok?'✓':'✗'}</span>
-                      <span style={{color:c.ok?'#8b949e':'#e6edf3'}}>{c.label}</span>
+                      <span style={{color:c.ok?'var(--green)':'var(--red)',fontSize:14,minWidth:14}}>{c.ok?'✓':'✗'}</span>
+                      <span style={{color:c.ok?'var(--text-2)':'var(--text-1)'}}>{c.label}</span>
                     </div>
                   ))}
                 </div>
 
                 {/* Disclaimer */}
-                <div style={{...S.note,borderColor:'#30363d',color:'#8b949e',background:'#161b22'}}>
+                <div style={{...S.note,borderColor:'var(--border)',color:'var(--text-2)',background:'var(--surface)'}}>
                   <span style={{marginRight:4}}>ℹ️</span>
                   You are responsible for ensuring your listing complies with eBay's{' '}
-                  <a href="https://www.ebay.co.uk/help/policies/listing-policies/listing-policies?id=4213" target="_blank" rel="noreferrer" style={{color:'#58a6ff'}}>listing policies</a>,
+                  <a href="https://www.ebay.co.uk/help/policies/listing-policies/listing-policies?id=4213" target="_blank" rel="noreferrer" style={{color:'var(--blue)'}}>listing policies</a>,
                   {' '}item descriptions are accurate, and items are permitted to be sold on eBay.
-                </div>
-
-                {/* Shipping service */}
-                <div style={S.row2}>
-                  <div style={S.field}>
-                    <label style={S.lbl}>Shipping service</label>
-                    <select style={S.inp} value={shippingService} onChange={e=>setShippingService(e.target.value)}>
-                      {SHIPPING_SERVICES.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}
-                    </select>
-                  </div>
-                  <div style={S.field}>
-                    <label style={S.lbl}>Postage cost ({sym}) charged to buyer</label>
-                    <input style={S.inp} type="number" step="0.01" min="0" value={postageCost} onChange={e=>setPostageCost(e.target.value)} placeholder="0.00"/>
-                  </div>
                 </div>
 
                 {/* Postage policy for this listing */}
@@ -594,7 +578,7 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
                         <option value="">Use default ({fulfillmentPolicies.find(p=>p.fulfillmentPolicyId===fulfillmentPolicyId)?.name||'none set'})</option>
                         {fulfillmentPolicies.map(p=><option key={p.fulfillmentPolicyId} value={p.fulfillmentPolicyId}>{p.name}</option>)}
                       </select>
-                    : <div style={{fontSize:11,color:'#6e7681'}}>Set up postage policies in My Account → eBay Setup first</div>
+                    : <div style={{fontSize:11,color:'var(--text-3)'}}>Set up postage policies in My Account → eBay Setup first</div>
                   }
                 </div>
                 <div style={S.field}>
@@ -606,14 +590,14 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
                 <div style={S.field}>
                   <label style={S.lbl}>Your postal code (item location shown on eBay)</label>
                   <input style={{...S.inp,maxWidth:160}} value={postalCode} onChange={e=>setPostalCode(e.target.value)} placeholder="e.g. LE11 1AA"/>
-                  <div style={{fontSize:10,color:'#6e7681',marginTop:2}}>Set once in ⚙️ Settings so you don't have to enter it each time</div>
+                  <div style={{fontSize:10,color:'var(--text-3)',marginTop:2}}>Set once in ⚙️ Settings so you don't have to enter it each time</div>
                 </div>
 
                 {/* Policy status */}
-                <div style={{fontSize:11,color:'#8b949e'}}>
+                <div style={{fontSize:11,color:'var(--text-2)'}}>
                   Policies: {(fulfillmentPolicyId&&paymentPolicyId&&returnPolicyId)
-                    ? <span style={{color:'#3fb950'}}>✓ Configured</span>
-                    : <span style={{color:'#f85149'}}>✗ Not configured — go to My Account → eBay Setup</span>
+                    ? <span style={{color:'var(--green)'}}>✓ Configured</span>
+                    : <span style={{color:'var(--red)'}}>✗ Not configured — go to My Account → eBay Setup</span>
                   }
                 </div>
 
@@ -621,14 +605,14 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
                 {publishResult?.success&&(
                   <div style={S.success}>
                     <div style={{fontWeight:600,marginBottom:4}}>✓ Listed on eBay!</div>
-                    <div>Listing ID: {publishResult.ebayItemId} · <a href={publishResult.listingUrl} target="_blank" rel="noreferrer" style={{color:'#3fb950'}}>View listing on eBay ↗</a></div>
+                    <div>Listing ID: {publishResult.ebayItemId} · <a href={publishResult.listingUrl} target="_blank" rel="noreferrer" style={{color:'var(--green)'}}>View listing on eBay ↗</a></div>
                   </div>
                 )}
                 {publishResult?.error&&(
                   <div style={S.error}>
                     <div style={{fontWeight:600,marginBottom:4}}>✗ Listing failed</div>
                     <div>{publishResult.error}</div>
-                    <div style={{marginTop:6,fontSize:11,color:'#f85149',opacity:.7}}>Check the checklist above, review item specifics, and ensure your eBay account is in good standing.</div>
+                    <div style={{marginTop:6,fontSize:11,color:'var(--red)',opacity:.7}}>Check the checklist above, review item specifics, and ensure your eBay account is in good standing.</div>
                   </div>
                 )}
 
@@ -649,9 +633,9 @@ export default function ItemDetailModal({ item, cats, sym='£', cfg={}, calcFees
         </div>
 
         <div style={S.footer}>
-          <span style={{fontSize:11,color:'#6e7681',alignSelf:'center',marginRight:'auto'}}>
+          <span style={{fontSize:11,color:'var(--text-3)',alignSelf:'center',marginRight:'auto'}}>
             Added {item.dateStr}{item.listedAt?` · Listed ${item.listedAt}`:''}
-            {item.ebayItemId&&<> · <a href={item.ebayListingUrl} target="_blank" rel="noreferrer" style={{color:'#58a6ff'}}>View on eBay ↗</a></>}
+            {item.ebayItemId&&<> · <a href={item.ebayListingUrl} target="_blank" rel="noreferrer" style={{color:'var(--blue)'}}>View on eBay ↗</a></>}
           </span>
           <button style={S.btn} onClick={onClose}>Cancel</button>
           <button style={S.btnP} onClick={handleSave}>Save changes</button>
