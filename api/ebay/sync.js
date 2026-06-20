@@ -51,12 +51,14 @@ async function fetchActiveListings(token) {
     const get  = tag => extractFirst(body, tag);
     const itemId = get('ItemID');
     return {
-      ebayItemId: itemId,
-      ebaySku:    get('SKU'),
-      title:      get('Title'),
-      price:      parseFloat(get('CurrentPrice') || get('ConvertedCurrentPrice') || get('StartPrice') || '0') || 0,
-      qty:        parseInt(get('QuantityAvailable') || get('Quantity') || '1', 10) || 1,
-      listingUrl: get('ViewItemURL') || (itemId ? 'https://www.ebay.co.uk/itm/'+itemId : ''),
+      ebayItemId:        itemId,
+      ebaySku:           get('SKU'),
+      title:             get('Title'),
+      price:             parseFloat(get('CurrentPrice') || get('ConvertedCurrentPrice') || get('StartPrice') || '0') || 0,
+      qty:               parseInt(get('QuantityAvailable') || get('Quantity') || '1', 10) || 1,
+      listingUrl:        get('ViewItemURL') || (itemId ? 'https://www.ebay.co.uk/itm/'+itemId : ''),
+      fulfillmentPolicyId: get('ShippingProfileID') || '', // same ID space as the Account API's fulfillment policies
+      startTime:         get('StartTime') || '', // original listing date — used for the free-listings-per-month tracker
     };
   }).filter(it => it.ebayItemId);
 
