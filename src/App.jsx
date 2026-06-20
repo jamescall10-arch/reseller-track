@@ -43,6 +43,7 @@ const DEFAULTS = {
   returnPolicy:{ enabled:false, accepted:true, refund:'MoneyBack', within:'Days_30', paidBy:'Buyer' },
   fulfillmentPolicyId:'', paymentPolicyId:'', returnPolicyId:'',
   postageCosts:{}, // { [fulfillmentPolicyId]: yourActualCostToPost }
+  freeListingsPerMonth:0, feePerListing:0.35,
 };
 // Resolve what an item actually costs to post: prefer the cost set against its
 // specific eBay postage policy, then a manually-entered per-item cost, then the
@@ -190,6 +191,20 @@ function SettingsModal({cfg,onChange,onSave,onClose,feeLabel,effectiveFeeRate,sa
           <label style={S.fLbl}>Standard listing description</label>
           <textarea style={{...S.fInp,minHeight:100,resize:'vertical',lineHeight:1.5}} value={cfg.listingDescription||''} onChange={e=>f('listingDescription',e.target.value)} placeholder="e.g. Fast dispatch · Secure packaging · Combined postage available · Please check my other listings!"/>
           <div style={{fontSize:11,color:'var(--text-3)',marginTop:3}}>Added to every eBay listing pre-fill. You can use it for dispatch times, postage info, feedback requests etc.</div>
+        </div>
+        <div style={{...S.field,gridColumn:'1/-1'}}>
+          <label style={S.fLbl}>eBay listing fees</label>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+            <div>
+              <input style={S.fInp} type="number" step="1" min="0" value={cfg.freeListingsPerMonth??''} onChange={e=>f('freeListingsPerMonth',e.target.value)} placeholder="e.g. 250"/>
+              <div style={{fontSize:10,color:'var(--text-3)',marginTop:3}}>Free listings/month from your eBay Shop subscription (0 if you don't have one)</div>
+            </div>
+            <div>
+              <input style={S.fInp} type="number" step="0.01" min="0" value={cfg.feePerListing??''} onChange={e=>f('feePerListing',e.target.value)} placeholder="e.g. 0.35"/>
+              <div style={{fontSize:10,color:'var(--text-3)',marginTop:3}}>What eBay charges per listing once your free allowance is used up</div>
+            </div>
+          </div>
+          <div style={{fontSize:10,color:'var(--text-3)',marginTop:4}}>Check My eBay → Subscriptions for your exact allowance and fee — this isn't pulled live from eBay.</div>
         </div>
       </div>
       <div style={S.mActs}><button style={S.mBtn} onClick={onClose}>Cancel</button><button style={S.mBtnP} onClick={onSave}>Save settings</button></div>
@@ -345,23 +360,36 @@ export default function App(){
   },[isLoaded,isSignedIn,userId]);
 
   // ── Debounced save to Supabase ─────────────────────────────────────────────
+  const doSave = async () => {
+    if(!ready||!userId||!isSignedIn) return;
+    try{
+      const token = await getToken({ template:'supabase' });
+      const client = getAuthClient(token);
+      await client.from('user_settings').upsert({
+        user_id:userId,
+        settings:{ cfg, cats, items, sales, purchases },
+        updated_at:new Date().toISOString(),
+      },{ onConflict:'user_id' });
+      setSyncStatus('saved');
+    }catch(e){ console.error('Save error:',e); setSyncStatus('error'); }
+  };
   useEffect(()=>{
     if(!ready||!userId||!isSignedIn) return;
     setSyncStatus('saving');
     clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(async()=>{
-      try{
-        const token = await getToken({ template:'supabase' });
-        const client = getAuthClient(token);
-        await client.from('user_settings').upsert({
-          user_id:userId,
-          settings:{ cfg, cats, items, sales, purchases },
-          updated_at:new Date().toISOString(),
-        },{ onConflict:'user_id' });
-        setSyncStatus('saved');
-      }catch(e){ console.error('Save error:',e); setSyncStatus('error'); }
-    },1500);
+    saveTimer.current = setTimeout(doSave, 800);
   },[cfg,cats,items,sales,purchases,userId,ready,isSignedIn]);
+
+  // Force an immediate save (bypassing the debounce) when the user switches tabs,
+  // minimises the page, or navigates away — so a delete right before leaving the
+  // page can never be lost to the in-flight debounce timer.
+  useEffect(()=>{
+    const flush = () => {
+      if(document.visibilityState==='hidden'){ clearTimeout(saveTimer.current); doSave(); }
+    };
+    document.addEventListener('visibilitychange', flush);
+    return ()=>document.removeEventListener('visibilitychange', flush);
+  },[cfg,cats,items,sales,purchases,userId,ready,isSignedIn]); // eslint-disable-line
 
   // ── eBay connection status ────────────────────────────────────────────────────
   const fetchEbayStatus = () => {
@@ -408,6 +436,15 @@ export default function App(){
     if(d.merchantLocationKey) { setEbayLocation(true); setEbayMsg('✓ Inventory location created'); setTimeout(()=>setEbayMsg(''),4000); }
     else { setEbayMsg('✗ '+d.error); setTimeout(()=>setEbayMsg(''),6000); }
   };
+
+  // Auto-fetch policies & location as soon as eBay connection is confirmed —
+  // no more manual "Refresh policies" click needed on every page load.
+  useEffect(()=>{
+    if(ebayStatus?.connected && userId){
+      fetchEbayPolicies();
+      fetchEbayLocation();
+    }
+  },[ebayStatus?.connected, userId]); // eslint-disable-line
 
   // ── Sync eBay orders ─────────────────────────────────────────────────────────
   const runEbaySync = async ({ days=null, historyOnly=false, label='' } = {}) => {
@@ -523,11 +560,28 @@ export default function App(){
         }
       });
 
-      // ── Import currently active eBay listings not yet tracked in the app ──────
+      // ── Import currently active eBay listings — create new ones, and backfill
+      // missing data (like postage policy) onto ones we already tracked, since
+      // older syncs didn't capture every field eBay now gives us ──────────────
       const activeListings = data.activeListings||[];
       const newListedItems = [];
+      let backfilled = 0;
       activeListings.forEach((listing,idx) => {
-        if(isKnown(listing.ebayItemId, listing.ebaySku)) return;
+        const existing = items.find(it =>
+          (listing.ebayItemId && it.ebayItemId===listing.ebayItemId) ||
+          (listing.ebaySku    && it.ebaySku===listing.ebaySku)
+        );
+
+        if(existing){
+          // Already tracked — backfill any field eBay can now tell us that we're missing
+          const patch = {};
+          if(!existing.fulfillmentPolicyId && listing.fulfillmentPolicyId) patch.fulfillmentPolicyId = listing.fulfillmentPolicyId;
+          if(!existing.ebayListingUrl && listing.listingUrl) patch.ebayListingUrl = listing.listingUrl;
+          if(Object.keys(patch).length){ soldUpdates.set(existing.id, {...(soldUpdates.get(existing.id)||{}), ...patch}); backfilled++; }
+          return;
+        }
+
+        if(isKnown(listing.ebayItemId, listing.ebaySku)) return; // already created earlier in this same run
         markKnown(listing.ebayItemId, listing.ebaySku);
         newListedItems.push({
           id:                now+idx+2000000,
@@ -542,10 +596,11 @@ export default function App(){
           sellerPostageCost:    +(cfg.postage||0),
           status:               'listed',
           dateStr:              todayEnGB(),
-          listedAt:             todayEnGB(),
+          listedAt:             listing.startTime ? new Date(listing.startTime).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}) : todayEnGB(),
           ebayItemId:           listing.ebayItemId,
           ebaySku:              listing.ebaySku,
           ebayListingUrl:       listing.listingUrl,
+          fulfillmentPolicyId:  listing.fulfillmentPolicyId||'',
           importedFromEbay:     true,
         });
         imported++;
@@ -563,9 +618,10 @@ export default function App(){
       }
 
       const parts = [];
-      if(synced>0)   parts.push(synced+' sale'+(synced!==1?'s':'')+' synced');
-      if(created>0)  parts.push(created+' past sale'+(created!==1?'s':'')+' imported');
-      if(imported>0) parts.push(imported+' active listing'+(imported!==1?'s':'')+' imported');
+      if(synced>0)     parts.push(synced+' sale'+(synced!==1?'s':'')+' synced');
+      if(created>0)    parts.push(created+' past sale'+(created!==1?'s':'')+' imported');
+      if(imported>0)   parts.push(imported+' active listing'+(imported!==1?'s':'')+' imported');
+      if(backfilled>0) parts.push(backfilled+' listing'+(backfilled!==1?'s':'')+' updated');
       let msg = (label?label+' — ':'') + (parts.length ? '✓ '+parts.join(', ') : 'No new sales or listings found on eBay');
       if(data.activeListingsError){ msg += (parts.length?' — ':'') + '⚠ Active listings: '+data.activeListingsError; hadError=true; }
       if(data.truncated){ msg += ` (more than ${data.ordersFetched} orders exist — run again to continue importing)`; hadError=true; }
@@ -690,6 +746,21 @@ export default function App(){
       return{key,label:formatMonthLabel(key),...v,businessCosts,netProfit:+(v.profit-businessCosts).toFixed(2)};
     }).sort((a,b)=>b.key.localeCompare(a.key));
   },[sales,purchases]);
+
+  // ── Free eBay listings tracker — counts listings created this calendar month ──
+  // Counts by listedAt date regardless of current status, since eBay's free
+  // allowance is consumed at point of listing creation, not by what's still active.
+  const listingsThisMonth = useMemo(() => {
+    const thisKey = monthKey(new Date());
+    return items.filter(it => {
+      if(!it.listedAt && !it.ebayItemId) return false; // never listed on eBay
+      const d = parseEnGBDate(it.listedAt) || parseEnGBDate(it.dateStr);
+      if(!d) return false;
+      return monthKey(d) === thisKey;
+    }).length;
+  },[items]);
+  const freeListingsRemaining = Math.max(0, (cfg.freeListingsPerMonth||0) - listingsThisMonth);
+  const freeListingsExceeded  = listingsThisMonth >= (cfg.freeListingsPerMonth||0);
 
   // sell form computed
   const spNum = parseFloat(soldP)||0;
@@ -823,7 +894,7 @@ export default function App(){
     setSpendAmt('');setShowSpend(false);
   };
 
-  const saveCfg=()=>{ const u={...cfgForm,baseFee:Number(cfgForm.baseFee)||15,postage:Number(cfgForm.postage)||1,initialSpend:Number(cfgForm.initialSpend)||0}; setCfg(u);setCfgForm(u);setShowCfg(false); };
+  const saveCfg=()=>{ const u={...cfgForm,baseFee:Number(cfgForm.baseFee)||15,postage:Number(cfgForm.postage)||1,initialSpend:Number(cfgForm.initialSpend)||0,freeListingsPerMonth:Number(cfgForm.freeListingsPerMonth)||0,feePerListing:Number(cfgForm.feePerListing)||0}; setCfg(u);setCfgForm(u);setShowCfg(false); };
 
   // ── Bulk inventory selection ──────────────────────────────────
   const invSelKey = id => String(id);
@@ -976,7 +1047,10 @@ export default function App(){
                 {ebaySyncState.loading?'⏳ Syncing…':'↻ Sync eBay'}
               </button>
             )}
-            {tab==='listings'&&<button style={S.addBtn} onClick={()=>setBundleSell(true)}>📦 Bundle sale</button>}
+            {tab==='listings'&&<button style={S.addBtn} onClick={()=>{
+              if(lstSel.length<2){ alert('Select 2 or more items first by ticking their checkboxes, then click Bundle sale.'); return; }
+              openBundleSell();
+            }}>📦 Bundle sale</button>}
           </div>
         </header>
 
@@ -992,6 +1066,24 @@ export default function App(){
           }}>
             <span>{ebaySyncState.msg}</span>
             <button onClick={()=>setEbaySyncState(s=>({...s,msg:''}))} style={{background:'none',border:'none',color:'inherit',cursor:'pointer',fontSize:14,opacity:0.7,flexShrink:0}}>✕</button>
+          </div>
+        )}
+
+        {/* Free eBay listings tracker — Inventory tab only, only if an allowance is set */}
+        {tab==='inventory'&&cfg.freeListingsPerMonth>0&&(
+          <div style={{
+            padding:'8px 24px', fontSize:11.5, display:'flex', alignItems:'center', gap:8,
+            background: freeListingsExceeded ? 'var(--amber-a)' : 'var(--surface)',
+            borderBottom:'1px solid var(--border)',
+            color: freeListingsExceeded ? 'var(--amber)' : 'var(--text-2)',
+          }}>
+            <span>{freeListingsExceeded ? '⚠' : '🏷'}</span>
+            <span>
+              {listingsThisMonth} of {cfg.freeListingsPerMonth} free listings used this month
+              {freeListingsExceeded
+                ? ` — you're now paying ~${sym}${(cfg.feePerListing||0).toFixed(2)} per new listing`
+                : ` — ${freeListingsRemaining} free listing${freeListingsRemaining!==1?'s':''} remaining`}
+            </span>
           </div>
         )}
 
@@ -1573,6 +1665,7 @@ export default function App(){
           paymentPolicyId={cfg.paymentPolicyId||''}
           returnPolicyId={cfg.returnPolicyId||''}
           fulfillmentPolicies={ebayPolicies?.fulfillment||[]}
+          listingsThisMonth={listingsThisMonth}
         />
       )}
 
