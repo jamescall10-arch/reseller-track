@@ -68,18 +68,40 @@ async function fetchActiveListings(token) {
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
-  const { userId } = req.query;
+  const { userId, days, historyOnly } = req.query;
   if (!userId) return res.status(400).json({ error: 'Missing userId' });
   try {
     const token = await getUserToken(userId);
 
     // ── Orders (sold items) — Fulfillment REST API ─────────────────────────
-    const from  = new Date(Date.now()-90*24*60*60*1000).toISOString();
-    const r     = await fetch(EBAY_API+'/sell/fulfillment/v1/order?limit=50&filter=creationdate:['+from+'..]', {headers:ebayHeaders(token)});
-    if (!r.ok) { const e=await r.json().catch(()=>({})); throw new Error('Fulfillment API: '+r.status+' — '+((e.errors||[]).map(x=>x.message).join(', ')||r.statusText)); }
-    const data   = await r.json();
+    // eBay supports up to 2 years of order history. Default quick-sync stays at
+    // 90 days; pass ?days=730 for a one-off full history import. Paginated with
+    // a safe cap to stay inside serverless function time limits.
+    const lookbackDays = Math.min(parseInt(days, 10) || 90, 730);
+    const from  = new Date(Date.now()-lookbackDays*24*60*60*1000).toISOString();
+    const PAGE_SIZE  = 100;
+    const MAX_PAGES  = lookbackDays > 90 ? 5 : 2; // cap: up to 500 orders on a full-history pull (timeout safety)
+    let offset = 0;
+    let allOrders = [];
+    let totalAvailable = 0;
+    let pagesFetched = 0;
+
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const r = await fetch(
+        EBAY_API+'/sell/fulfillment/v1/order?limit='+PAGE_SIZE+'&offset='+offset+'&filter=creationdate:['+from+'..]',
+        {headers:ebayHeaders(token)}
+      );
+      if (!r.ok) { const e=await r.json().catch(()=>({})); throw new Error('Fulfillment API: '+r.status+' — '+((e.errors||[]).map(x=>x.message).join(', ')||r.statusText)); }
+      const pageData = await r.json();
+      allOrders = allOrders.concat(pageData.orders||[]);
+      totalAvailable = pageData.total || allOrders.length;
+      pagesFetched++;
+      offset += PAGE_SIZE;
+      if (offset >= totalAvailable || !pageData.orders?.length) break;
+    }
+
     const results = [];
-    (data.orders||[]).forEach(order => {
+    allOrders.forEach(order => {
       const orderTotal    = parseFloat(order.pricingSummary?.total?.value||0);
       const totalFees     = parseFloat(order.totalMarketplaceFee?.value||0);
       const totalToSeller = parseFloat(order.paymentSummary?.totalDueToSeller?.value||0);
@@ -104,17 +126,29 @@ export default async function handler(req, res) {
       });
     });
 
-    // ── Active listings — non-fatal if it fails, but error is surfaced to the UI ──
+    const truncated = totalAvailable > allOrders.length;
+    console.log('[sync] orders: fetched='+allOrders.length+' of total='+totalAvailable+' across '+pagesFetched+' page(s), lookbackDays='+lookbackDays);
+
+    // ── Active listings — skip on a history-only pull to keep it fast ──────────
     let activeListings = [];
     let activeListingsError = null;
-    try {
-      activeListings = await fetchActiveListings(token);
-    } catch (e) {
-      console.error('[sync] active listings fetch failed:', e.message);
-      activeListingsError = e.message;
+    if (historyOnly !== 'true') {
+      try {
+        activeListings = await fetchActiveListings(token);
+      } catch (e) {
+        console.error('[sync] active listings fetch failed:', e.message);
+        activeListingsError = e.message;
+      }
     }
 
-    return res.status(200).json({ orders: results, activeListings, activeListingsError });
+    return res.status(200).json({
+      orders: results,
+      activeListings,
+      activeListingsError,
+      totalOrdersAvailable: totalAvailable,
+      ordersFetched: allOrders.length,
+      truncated,
+    });
   } catch(e) {
     console.error('[sync]',e.message);
     return res.status(500).json({ error: e.message });
