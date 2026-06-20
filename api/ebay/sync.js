@@ -69,6 +69,7 @@ async function fetchActiveListings(token) {
       listingUrl:        get('ViewItemURL') || (itemId ? 'https://www.ebay.co.uk/itm/'+itemId : ''),
       fulfillmentPolicyId: get('ShippingProfileID') || '', // same ID space as the Account API's fulfillment policies
       startTime:         get('StartTime') || '', // original listing date — used for the free-listings-per-month tracker
+      isGTC:             get('ListingDuration') === 'GTC', // Good 'Til Cancelled — auto-renews ~monthly, each renewal uses a free-listing credit
       shippingServiceName,                        // e.g. "RoyalMail2ndClassStandard" — used when there's no Business Policy
       shippingServiceCost,                        // buyer-facing cost set on the listing; null if calculated/not flat-rate
     };
@@ -80,10 +81,68 @@ async function fetchActiveListings(token) {
   return items;
 }
 
+// ── GetItem: look up shipping config for a SPECIFIC item, including sold/ended ones ──
+// GetMyeBaySelling's ActiveList only covers currently-active listings — once
+// something sells, it disappears from that response entirely, so already-sold
+// items can never be backfilled that way. GetItem works for any item regardless
+// of status, which is what lets us correct postage on sales already logged.
+async function fetchItemShipping(token, itemId) {
+  const xml = '<?xml version="1.0" encoding="utf-8"?>'
+    + '<GetItemRequest xmlns="urn:ebay:apis:eBLBaseComponents">'
+    + '<ItemID>' + itemId + '</ItemID>'
+    + '<DetailLevel>ReturnAll</DetailLevel>'
+    + '<IncludeItemSpecifics>false</IncludeItemSpecifics>'
+    + '</GetItemRequest>';
+
+  const r = await fetch('https://api.ebay.com/ws/api.dll', {
+    method: 'POST',
+    headers: {
+      'X-EBAY-API-CALL-NAME':          'GetItem',
+      'X-EBAY-API-SITEID':             '3',
+      'X-EBAY-API-COMPATIBILITY-LEVEL':'1113',
+      'X-EBAY-API-IAF-TOKEN':          token,
+      'Content-Type':                  'text/xml',
+    },
+    body: xml,
+  });
+  const text = await r.text();
+  const ack  = extractFirst(text, 'Ack');
+  if (ack !== 'Success' && ack !== 'Warning') return null;
+
+  const svcMatch = text.match(/<ShippingServiceOptions>([\s\S]*?)<\/ShippingServiceOptions>/);
+  const svcBody  = svcMatch ? svcMatch[1] : '';
+  const shippingServiceName = svcBody ? extractFirst(svcBody, 'ShippingService') : '';
+  const costRaw = svcBody ? extractFirst(svcBody, 'ShippingServiceCost') : '';
+
+  return {
+    fulfillmentPolicyId: extractFirst(text, 'ShippingProfileID') || '',
+    shippingServiceName,
+    shippingServiceCost: costRaw !== '' ? parseFloat(costRaw) : null,
+  };
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
-  const { userId, days, historyOnly } = req.query;
+  const { userId, days, historyOnly, itemShippingLookup } = req.query;
   if (!userId) return res.status(400).json({ error: 'Missing userId' });
+
+  // ── Mode: look up real shipping cost for specific (likely already-sold) items ──
+  if (itemShippingLookup) {
+    try {
+      const token = await getUserToken(userId);
+      const itemIds = itemShippingLookup.split(',').map(s=>s.trim()).filter(Boolean).slice(0, 15); // cap — stays inside serverless time limit
+      const results = {};
+      for (const id of itemIds) {
+        try { results[id] = await fetchItemShipping(token, id); }
+        catch (e) { console.error('[sync] GetItem failed for', id, e.message); results[id] = null; }
+      }
+      return res.status(200).json({ shipping: results });
+    } catch (e) {
+      console.error('[sync:itemShippingLookup]', e.message);
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
   try {
     const token = await getUserToken(userId);
 
