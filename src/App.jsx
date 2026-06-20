@@ -42,6 +42,17 @@ const DEFAULTS = {
   postage:1.00, initialSpend:0, taxCountry:'UK', listingDescription:'', postalCode:'',
   returnPolicy:{ enabled:false, accepted:true, refund:'MoneyBack', within:'Days_30', paidBy:'Buyer' },
   fulfillmentPolicyId:'', paymentPolicyId:'', returnPolicyId:'',
+  postageCosts:{}, // { [fulfillmentPolicyId]: yourActualCostToPost }
+};
+// Resolve what an item actually costs to post: prefer the cost set against its
+// specific eBay postage policy, then a manually-entered per-item cost, then the
+// flat global default — in that order of accuracy.
+const resolvePostageCost = (item, cfg) => {
+  const policyId = item?.fulfillmentPolicyId;
+  const policyCost = policyId ? cfg?.postageCosts?.[policyId] : null;
+  if(policyCost!=null && policyCost!=='' && !isNaN(policyCost)) return +policyCost;
+  if(item?.sellerPostageCost!=null) return +item.sellerPostageCost;
+  return +(cfg?.postage||0);
 };
 const SORT_OPTS = [['price-desc','Price ↓'],['price-asc','Price ↑'],['name','Name A–Z']];
 
@@ -445,7 +456,7 @@ export default function App(){
 
         if(matched){
           // Known tracked item — log the sale and move it to sold, refreshing data on resync
-          const sellerPost = matched.sellerPostageCost||cfg.postage||0;
+          const sellerPost = resolvePostageCost(matched, cfg);
           newSales.push({
             id:          now+idx,
             itemId:      matched.id,
@@ -960,7 +971,7 @@ export default function App(){
             {effectiveFeeRate&&<span style={{fontSize:11,color:'var(--green)',background:'var(--green-a)',border:'1px solid rgba(16,185,129,0.2)',padding:'3px 10px',borderRadius:20}}>Fee: {(effectiveFeeRate*100).toFixed(1)}%</span>}
             {(tab==='dashboard'||tab==='inventory')&&<button style={S.mBtn} onClick={()=>setShowSpend(true)}>💸 Log Spend</button>}
             {tab==='inventory'&&<button style={S.addBtn} onClick={doAddItem}>＋ Add Item</button>}
-            {tab==='listings'&&ebayStatus?.connected&&(
+            {(tab==='listings'||tab==='sales')&&ebayStatus?.connected&&(
               <button style={{...S.mBtn,fontSize:12}} onClick={syncEbayOrders} disabled={ebaySyncState.loading}>
                 {ebaySyncState.loading?'⏳ Syncing…':'↻ Sync eBay'}
               </button>
@@ -1154,7 +1165,7 @@ export default function App(){
                               </div>
                               <div style={S.acts}>
                                 <IBtn href={ebayUrl(it.name)} title="Search eBay sold">🔍</IBtn>
-                                <IBtn onClick={()=>{setSellItem(it);setSoldP(it.price.toFixed(2));setMoneyInP('');setPostageP('');setSellQtyIn('1');}} title="Log sale" col="var(--green)">£</IBtn>
+                                <IBtn onClick={()=>{setSellItem(it);setSoldP(it.price.toFixed(2));setMoneyInP('');setPostageP(it.fulfillmentPolicyId&&cfg.postageCosts?.[it.fulfillmentPolicyId]!=null?String(cfg.postageCosts[it.fulfillmentPolicyId]):'');setSellQtyIn('1');}} title="Log sale" col="var(--green)">£</IBtn>
                                 <IBtn onClick={()=>setItems(p=>p.map(x=>x.id===it.id?{...x,status:'stock'}:x))} title="Back to inventory" col="var(--text-2)">←</IBtn>
                               </div>
                             </div>
@@ -1186,7 +1197,7 @@ export default function App(){
                               <td style={{...S.td,textAlign:'right',fontSize:11}}>{(()=>{const p=it.price-calcFees(it.price)-(it.buyCost||0);return <span style={{color:p>=0?'var(--green)':'var(--red)',fontWeight:p>0?600:400}}>{fmt(p)}</span>;})()}</td>
                               <td style={S.td}><div style={S.acts}>
                                 <IBtn href={ebayUrl(it.name)} title="eBay sold listings">🔍</IBtn>
-                                <IBtn onClick={()=>{setSellItem(it);setSoldP(it.price.toFixed(2));setMoneyInP('');setPostageP('');setSellQtyIn('1');}} title="Log sale" col="var(--green)">£</IBtn>
+                                <IBtn onClick={()=>{setSellItem(it);setSoldP(it.price.toFixed(2));setMoneyInP('');setPostageP(it.fulfillmentPolicyId&&cfg.postageCosts?.[it.fulfillmentPolicyId]!=null?String(cfg.postageCosts[it.fulfillmentPolicyId]):'');setSellQtyIn('1');}} title="Log sale" col="var(--green)">£</IBtn>
                                 <IBtn onClick={()=>setItems(p=>p.map(x=>x.id===it.id?{...x,status:'stock'}:x))} title="Move back to inventory" col="var(--text-2)">←</IBtn>
                                 <IBtn onClick={()=>{if(confirm('Remove?'))setItems(p=>p.filter(x=>x.id!==it.id));}} title="Remove" col="var(--red)">✕</IBtn>
                               </div></td>
@@ -1634,6 +1645,31 @@ export default function App(){
                         }
                       </div>
                     ))}
+
+                    {/* Per-policy postage cost — what each postage tier actually costs YOU to send */}
+                    {(ebayPolicies.fulfillment||[]).length>0&&(
+                      <div style={{display:'flex',flexDirection:'column',gap:3,marginTop:4}}>
+                        <label style={{fontSize:10,color:'var(--text-2)'}}>Your actual cost per postage tier</label>
+                        <div style={{fontSize:10,color:'var(--text-3)',marginBottom:2,lineHeight:1.5}}>
+                          Used to calculate true profit instead of one flat default. Leave blank to fall back to the default postage cost in Settings.
+                        </div>
+                        <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                          {ebayPolicies.fulfillment.map(p=>(
+                            <div key={p.fulfillmentPolicyId} style={{display:'flex',alignItems:'center',gap:8}}>
+                              <span style={{fontSize:11,color:'var(--text-1)',flex:1}}>{p.name}</span>
+                              <span style={{fontSize:11,color:'var(--text-3)'}}>{sym}</span>
+                              <input style={{...S.fInp,width:70,fontSize:11,padding:'5px 6px'}} type="number" step="0.01" min="0"
+                                value={cfg.postageCosts?.[p.fulfillmentPolicyId]??''}
+                                onChange={e=>{
+                                  const v=e.target.value;
+                                  setCfg(prev=>({...prev,postageCosts:{...(prev.postageCosts||{}),[p.fulfillmentPolicyId]: v===''?undefined:v}}));
+                                }}
+                                placeholder={(cfg.postage||1).toFixed(2)}/>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Inventory location */}
                     <div style={{display:'flex',alignItems:'center',gap:8,marginTop:4,flexWrap:'wrap'}}>
