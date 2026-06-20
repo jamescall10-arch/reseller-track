@@ -224,46 +224,51 @@ function parseErrors(data) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-  const { userId, item } = req.body || {};
+  const { userId, item, action } = req.body || {};
   if (!userId || !item) return res.status(400).json({ error: 'Missing userId or item' });
 
   if (!item.fulfillmentPolicyId) return res.status(400).json({ error: 'No fulfillment policy selected. Go to My Account → eBay Setup.' });
   if (!item.paymentPolicyId)     return res.status(400).json({ error: 'No payment policy selected. Go to My Account → eBay Setup.' });
   if (!item.returnPolicyId)      return res.status(400).json({ error: 'No return policy selected. Go to My Account → eBay Setup.' });
 
+  if (action === 'update') return handleUpdate(req, res, userId, item);
+  return handleCreate(req, res, userId, item);
+}
+
+// ── Build the shared inventory-item + offer payloads used by both create and update ──
+async function buildPayloads(item) {
+  const qty         = Math.max(1, Math.floor(Number(item.qty)) || 1);
+  const description = (item.description || item.name || '').trim();
+  const images      = (item.photos || []).slice(0, 24).filter(Boolean);
+
+  const { condition, conditionDescriptors } = await resolveCondition(
+    item.ebayCategory, item.condition, item.itemSpecifics
+  );
+  const aspects = buildAspects(item.itemSpecifics, item.ebayCategory);
+
+  const inventoryBody = {
+    availability:  { shipToLocationAvailability: { quantity: qty } },
+    condition,
+    product: {
+      title:       (item.name || '').slice(0, 80),
+      description: description || undefined,
+      imageUrls:   images.length ? images : undefined,
+      aspects:     Object.keys(aspects).length ? aspects : undefined,
+    },
+  };
+  if (item.conditionDescription?.trim()) inventoryBody.conditionDescription = item.conditionDescription.trim();
+  if (conditionDescriptors?.length)      inventoryBody.conditionDescriptors = conditionDescriptors;
+
+  return { qty, description, condition, conditionDescriptors, inventoryBody };
+}
+
+// ── CREATE: PUT inventory_item → POST offer → POST publish ──────────────────────
+async function handleCreate(req, res, userId, item) {
   try {
     const token       = await getUserToken(userId);
     const sku         = item.ebaySku || ('rt-' + item.id + '-' + Date.now());
-    const qty         = Math.max(1, Math.floor(Number(item.qty)) || 1);
-    const description = (item.description || item.name || '').trim();
-    const images      = (item.photos || []).slice(0, 24).filter(Boolean);
     const locationKey = await ensureLocation(token, item.postalCode);
-
-    // Resolve condition — trading card categories have special rules
-    const { condition, conditionDescriptors } = await resolveCondition(
-      item.ebayCategory, item.condition, item.itemSpecifics
-    );
-
-    // Build aspects — excluding Grade/Professional Grader for TCG (go in conditionDescriptors)
-    const aspects = buildAspects(item.itemSpecifics, item.ebayCategory);
-
-    // ── Step 1: PUT inventory item ───────────────────────────────────────────
-    const inventoryBody = {
-      availability:  { shipToLocationAvailability: { quantity: qty } },
-      condition,
-      product: {
-        title:     (item.name || '').slice(0, 80),
-        description: description || undefined,
-        imageUrls:   images.length ? images : undefined,
-        aspects:     Object.keys(aspects).length ? aspects : undefined,
-      },
-    };
-    if (item.conditionDescription?.trim()) {
-      inventoryBody.conditionDescription = item.conditionDescription.trim();
-    }
-    if (conditionDescriptors?.length) {
-      inventoryBody.conditionDescriptors = conditionDescriptors;
-    }
+    const { qty, description, condition, conditionDescriptors, inventoryBody } = await buildPayloads(item);
 
     const put = await fetch(
       EBAY_API + '/sell/inventory/v1/inventory_item/' + encodeURIComponent(sku),
@@ -274,7 +279,6 @@ export default async function handler(req, res) {
       throw new Error('Inventory item: ' + parseErrors(e));
     }
 
-    // ── Step 2: POST offer ───────────────────────────────────────────────────
     const ofr = await fetch(EBAY_API + '/sell/inventory/v1/offer', {
       method: 'POST', headers: ebayHeaders(token),
       body: JSON.stringify({
@@ -298,7 +302,6 @@ export default async function handler(req, res) {
     }
     const { offerId } = await ofr.json();
 
-    // ── Step 3: Publish offer ────────────────────────────────────────────────
     const pub = await fetch(
       EBAY_API + '/sell/inventory/v1/offer/' + offerId + '/publish',
       { method: 'POST', headers: ebayHeaders(token), body: '{}' }
@@ -314,9 +317,85 @@ export default async function handler(req, res) {
       success: true, listingId, offerId, sku,
       listingUrl: 'https://www.ebay.co.uk/itm/' + listingId,
     });
-
   } catch (e) {
-    console.error('[listing]', e.message);
+    console.error('[listing:create]', e.message);
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+// ── UPDATE: PUT inventory_item (same SKU) → PUT offer/{offerId} ─────────────────
+// Only works for listings originally created through ResellerTrack (Inventory API
+// SKU-backed). Listings imported from eBay that were created outside the app have
+// no Inventory API offer object to update — those need an offerId lookup by SKU
+// first, which only succeeds if the listing genuinely is Inventory-API-backed.
+async function handleUpdate(req, res, userId, item) {
+  try {
+    if (!item.ebaySku) {
+      throw new Error('This listing has no ResellerTrack SKU on record, so it can\'t be updated from here. Edit it directly on eBay, then use Sync to refresh the price/quantity shown in the app.');
+    }
+    const token = await getUserToken(userId);
+    const sku   = item.ebaySku;
+
+    // Resolve offerId — use the one saved at publish time if we have it, otherwise look it up
+    let offerId = item.ebayOfferId;
+    if (!offerId) {
+      const lookup = await fetch(
+        EBAY_API + '/sell/inventory/v1/offer?sku=' + encodeURIComponent(sku) + '&marketplace_id=' + MARKETPLACE_ID,
+        { headers: ebayHeaders(token) }
+      );
+      if (!lookup.ok) {
+        const e = await lookup.json().catch(() => ({}));
+        throw new Error('Could not find this listing\'s eBay offer: ' + parseErrors(e));
+      }
+      const data = await lookup.json();
+      offerId = data.offers?.[0]?.offerId;
+      if (!offerId) throw new Error('No matching eBay offer found for SKU ' + sku + ' — this listing may not be Inventory-API-backed.');
+    }
+
+    const locationKey = await ensureLocation(token, item.postalCode);
+    const { qty, description, condition, conditionDescriptors, inventoryBody } = await buildPayloads(item);
+
+    // ── Step 1: revise the inventory item (title, photos, aspects, condition) ──
+    const put = await fetch(
+      EBAY_API + '/sell/inventory/v1/inventory_item/' + encodeURIComponent(sku),
+      { method: 'PUT', headers: ebayHeaders(token), body: JSON.stringify(inventoryBody) }
+    );
+    if (put.status >= 400) {
+      const e = await put.json().catch(() => ({}));
+      throw new Error('Inventory item: ' + parseErrors(e));
+    }
+
+    // ── Step 2: revise the live offer (price, qty, category, policies, description) ──
+    // updateOffer is a full replace, so every required field must be resent even if unchanged.
+    const upd = await fetch(EBAY_API + '/sell/inventory/v1/offer/' + offerId, {
+      method: 'PUT', headers: ebayHeaders(token),
+      body: JSON.stringify({
+        sku, marketplaceId: MARKETPLACE_ID, format: 'FIXED_PRICE',
+        availableQuantity: qty,
+        categoryId:        item.ebayCategory || undefined,
+        listingDescription: description || undefined,
+        listingPolicies: {
+          fulfillmentPolicyId: item.fulfillmentPolicyId,
+          paymentPolicyId:     item.paymentPolicyId,
+          returnPolicyId:      item.returnPolicyId,
+        },
+        pricingSummary: { price: { value: Number(item.price).toFixed(2), currency: 'GBP' } },
+        merchantLocationKey: locationKey,
+        includeCatalogProductDetails: false,
+      }),
+    });
+    if (!upd.ok) {
+      const e = await upd.json().catch(() => ({}));
+      throw new Error('Offer update: ' + parseErrors(e));
+    }
+    console.log('[listing] Updated live offer', offerId, 'sku', sku, 'condition', condition);
+
+    return res.status(200).json({
+      success: true, offerId, sku,
+      listingUrl: item.ebayItemId ? 'https://www.ebay.co.uk/itm/' + item.ebayItemId : '',
+    });
+  } catch (e) {
+    console.error('[listing:update]', e.message);
     return res.status(500).json({ error: e.message });
   }
 }
