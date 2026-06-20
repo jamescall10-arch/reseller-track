@@ -163,22 +163,22 @@ function SettingsModal({cfg,onChange,onSave,onClose,feeLabel,effectiveFeeRate,sa
         <div style={{...S.field,gridColumn:'1/-1'}}>
           <label style={S.fLbl}>Base eBay fee rate (%)</label>
           <input style={S.fInp} type="number" step="0.1" min="1" max="30" value={cfg.baseFee||15} onChange={e=>f('baseFee',e.target.value)}/>
-          <div style={{fontSize:11,color:'#8b949e',marginTop:4}}>
+          <div style={{fontSize:11,color:'var(--text-2)',marginTop:4}}>
             {effectiveFeeRate ? `✓ Real average from ${salesCount} sales: ${(effectiveFeeRate*100).toFixed(1)}%. Base rate used for Buy Calculator estimates.` : `Used in Buy Calculator. Becomes your real average once you've logged enough sales.`}
           </div>
         </div>
-        <div style={S.field}><label style={S.fLbl}>Stock spend before using this app</label><input style={S.fInp} type="number" step="0.01" min="0" value={cfg.initialSpend||''} onChange={e=>f('initialSpend',e.target.value)} placeholder="0.00"/><div style={{fontSize:11,color:'#8b949e',marginTop:3}}>One-time entry — adds to your total spend.</div></div>
+        <div style={S.field}><label style={S.fLbl}>Stock spend before using this app</label><input style={S.fInp} type="number" step="0.01" min="0" value={cfg.initialSpend||''} onChange={e=>f('initialSpend',e.target.value)} placeholder="0.00"/><div style={{fontSize:11,color:'var(--text-2)',marginTop:3}}>One-time entry — adds to your total spend.</div></div>
         <div style={S.field}><label style={S.fLbl}>Tax country</label><select style={{...S.fInp}} value={cfg.taxCountry||'UK'} onChange={e=>f('taxCountry',e.target.value)}><option value="UK">🇬🇧 United Kingdom</option><option value="Other">Other / International</option></select></div>
         <div style={S.field}>
           <label style={S.fLbl}>Your postal code</label>
           <input style={{...S.fInp,maxWidth:160}} value={cfg.postalCode||''} onChange={e=>f('postalCode',e.target.value)} placeholder="e.g. LE11 1AA"/>
-          <div style={{fontSize:11,color:'#6e7681',marginTop:3}}>Used as item location on eBay listings.</div>
+          <div style={{fontSize:11,color:'var(--text-3)',marginTop:3}}>Used as item location on eBay listings.</div>
         </div>
 
         <div style={{...S.field,gridColumn:'1/-1'}}>
           <label style={S.fLbl}>Standard listing description</label>
           <textarea style={{...S.fInp,minHeight:100,resize:'vertical',lineHeight:1.5}} value={cfg.listingDescription||''} onChange={e=>f('listingDescription',e.target.value)} placeholder="e.g. Fast dispatch · Secure packaging · Combined postage available · Please check my other listings!"/>
-          <div style={{fontSize:11,color:'#6e7681',marginTop:3}}>Added to every eBay listing pre-fill. You can use it for dispatch times, postage info, feedback requests etc.</div>
+          <div style={{fontSize:11,color:'var(--text-3)',marginTop:3}}>Added to every eBay listing pre-fill. You can use it for dispatch times, postage info, feedback requests etc.</div>
         </div>
       </div>
       <div style={S.mActs}><button style={S.mBtn} onClick={onClose}>Cancel</button><button style={S.mBtnP} onClick={onSave}>Save settings</button></div>
@@ -203,7 +203,7 @@ export default function App(){
   const mCard = {background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,padding:'12px',marginBottom:8};
   const mRow  = {display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8};
   const mName = {flex:1,paddingRight:8,fontWeight:600,fontSize:14,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'};
-  const mSub  = {fontSize:11,color:'#8b949e',marginTop:2};
+  const mSub  = {fontSize:11,color:'var(--text-2)',marginTop:2};
   const mFoot = {display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:6};
   const [ready,setReady]       = useState(false);
   const [syncStatus,setSyncStatus] = useState('saved');
@@ -688,24 +688,24 @@ export default function App(){
     window.open(url,'_blank');
   };
 
-  if(!isLoaded) return <div style={{...S.app,alignItems:'center',justifyContent:'center',fontSize:14,color:'#8b949e'}}>Loading…</div>;
+  if(!isLoaded) return <div style={{...S.app,alignItems:'center',justifyContent:'center',fontSize:14,color:'var(--text-2)'}}>Loading…</div>;
 
   if(!isSignedIn) return(
     <div style={{...S.app,alignItems:'center',justifyContent:'center'}}>
       <div style={{textAlign:'center',marginBottom:32}}>
         <div style={{fontSize:40,marginBottom:8}}>📦</div>
-        <div style={{fontSize:22,fontWeight:700,color:'#e6edf3',marginBottom:4}}>ResellerTrack</div>
-        <div style={{fontSize:13,color:'#8b949e'}}>Sign in to access your store</div>
+        <div style={{fontSize:22,fontWeight:700,color:'var(--text-1)',marginBottom:4}}>ResellerTrack</div>
+        <div style={{fontSize:13,color:'var(--text-2)'}}>Sign in to access your store</div>
       </div>
       <SignIn routing="hash" afterSignInUrl="/" appearance={{elements:{footerAction:{display:'none'}}}}/>
-      <p style={{fontSize:12,color:'#6e7681',marginTop:20,textAlign:'center'}}>
+      <p style={{fontSize:12,color:'var(--text-3)',marginTop:20,textAlign:'center'}}>
         Don't have an account?{' '}
-        <a href="https://resellertrack.lemonsqueezy.com/checkout/buy/339acfaf-9d87-427d-9869-49d3fb798dbf" style={{color:'#58a6ff'}}>Start your free trial</a>
+        <a href="https://resellertrack.lemonsqueezy.com/checkout/buy/339acfaf-9d87-427d-9869-49d3fb798dbf" style={{color:'var(--blue)'}}>Start your free trial</a>
       </p>
     </div>
   );
 
-  if(!ready) return <div style={{...S.app,alignItems:'center',justifyContent:'center',fontSize:14,color:'#8b949e'}}>Loading your data…</div>;
+  if(!ready) return <div style={{...S.app,alignItems:'center',justifyContent:'center',fontSize:14,color:'var(--text-2)'}}>Loading your data…</div>;
 
   // Paywall — subscription expired
   if(subStatus==='expired'){
@@ -713,8 +713,8 @@ export default function App(){
       <div style={{...S.app,alignItems:'center',justifyContent:'center'}}>
         <div style={{maxWidth:420,textAlign:'center',padding:32}}>
           <div style={{fontSize:48,marginBottom:16}}>📦</div>
-          <h2 style={{fontSize:22,fontWeight:700,color:'#e6edf3',marginBottom:8}}>Your subscription has ended</h2>
-          <p style={{fontSize:14,color:'#8b949e',lineHeight:1.7,marginBottom:28}}>Renew your subscription to access ResellerTrack. Your data is safe and will be waiting for you.</p>
+          <h2 style={{fontSize:22,fontWeight:700,color:'var(--text-1)',marginBottom:8}}>Your subscription has ended</h2>
+          <p style={{fontSize:14,color:'var(--text-2)',lineHeight:1.7,marginBottom:28}}>Renew your subscription to access ResellerTrack. Your data is safe and will be waiting for you.</p>
           <a href="https://resellertrack.lemonsqueezy.com/checkout/buy/339acfaf-9d87-427d-9869-49d3fb798dbf"
             style={{...S.addBtn,fontSize:15,padding:'12px 24px',margin:'0 auto 16px',display:'inline-flex',textDecoration:'none'}}>
             Renew subscription — £4.99/month
@@ -732,9 +732,9 @@ export default function App(){
       <div style={{...S.app,alignItems:'center',justifyContent:'center'}}>
         <div style={{maxWidth:440,textAlign:'center',padding:32}}>
           <div style={{fontSize:52,marginBottom:16}}>📦</div>
-          <h1 style={{fontSize:26,fontWeight:700,marginBottom:8,color:'#e6edf3'}}>ResellerTrack</h1>
-          <p style={{fontSize:14,color:'#8b949e',lineHeight:1.7,marginBottom:20}}>Track your stock, active listings, sales and profit. Built for eBay resellers of anything.</p>
-          <p style={{fontSize:13,color:'#e6edf3',marginBottom:12,fontWeight:500}}>Create your first category to get started:</p>
+          <h1 style={{fontSize:26,fontWeight:700,marginBottom:8,color:'var(--text-1)'}}>ResellerTrack</h1>
+          <p style={{fontSize:14,color:'var(--text-2)',lineHeight:1.7,marginBottom:20}}>Track your stock, active listings, sales and profit. Built for eBay resellers of anything.</p>
+          <p style={{fontSize:13,color:'var(--text-1)',marginBottom:12,fontWeight:500}}>Create your first category to get started:</p>
           <div style={{display:'flex',gap:8,marginBottom:16,maxWidth:360,margin:'0 auto 16px'}}>
             <input style={{...S.fInp,flex:1}} placeholder="e.g. Trading Cards, Clothing…" value={newCatName} onChange={e=>setNewCatName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addCat()} autoFocus/>
             <button style={S.addBtn} onClick={addCat}>Create</button>
@@ -840,7 +840,7 @@ export default function App(){
                   {c.name} <span style={{opacity:.6}}>({counts[c.id]||0})</span>
                 </button>
               ))}
-              <button style={{...S.catTab,marginLeft:'auto',color:'#58a6ff',borderColor:'#1f6feb',flexShrink:0}} onClick={()=>{setNewCatName('');setShowAddCat(true);}}>＋ New category</button>
+              <button style={{...S.catTab,marginLeft:'auto',color:'var(--blue)',borderColor:'var(--accent)',flexShrink:0}} onClick={()=>{setNewCatName('');setShowAddCat(true);}}>＋ New category</button>
             </div>
             <div className="rt-toolbar">
               <div className="rt-search-wrap" style={{position:'relative',width:220,flexShrink:0}}>
@@ -858,8 +858,8 @@ export default function App(){
               </select>}
               {invSel.length>0&&(
                 <>
-                  <span style={{fontSize:12,color:'#58a6ff'}}>{invSel.length} selected</span>
-                  <button style={{...S.mBtn,fontSize:12,padding:'5px 10px',color:'#f85149',borderColor:'#f85149'}} onClick={deleteInvSelection}>🗑 Delete selected</button>
+                  <span style={{fontSize:12,color:'var(--blue)'}}>{invSel.length} selected</span>
+                  <button style={{...S.mBtn,fontSize:12,padding:'5px 10px',color:'var(--red)',borderColor:'var(--red)'}} onClick={deleteInvSelection}>🗑 Delete selected</button>
                   <button style={{...S.mBtn,fontSize:12,padding:'5px 10px'}} onClick={()=>setInvSel([])}>Clear</button>
                 </>
               )}
@@ -869,22 +869,22 @@ export default function App(){
               <div>
                 {filteredItems.length===0&&<div style={S.empty}>No items — tap ＋ Add item to get started</div>}
                 {filteredItems.map(it=>(
-                  <div key={it.id} style={{...mCard,background:isInvSel(it.id)?'#1c2f4a':'#161b22'}}>
+                  <div key={it.id} style={{...mCard,background:isInvSel(it.id)?'var(--blue-a)':'var(--surface)'}}>
                     <div style={mRow}>
                       <div style={{display:'flex',alignItems:'flex-start',gap:8,flex:1,paddingRight:8}}>
                         <input type="checkbox" style={{...S.chk,marginTop:2,flexShrink:0}} checked={isInvSel(it.id)} onChange={()=>toggleInvSel(it.id)}/>
-                        <div style={{...mName,color:'#58a6ff',cursor:'pointer'}} onClick={()=>setDetailItem(it)}>{it.name}</div>
+                        <div style={{...mName,color:'var(--blue)',cursor:'pointer'}} onClick={()=>setDetailItem(it)}>{it.name}</div>
                       </div>
-                      <div style={{fontSize:20,fontWeight:700,color:'#f0883e',flexShrink:0}}>{fmt(it.price)}</div>
+                      <div style={{fontSize:20,fontWeight:700,color:'var(--accent)',flexShrink:0}}>{fmt(it.price)}</div>
                     </div>
-                    <div style={{fontSize:11,color:'#8b949e',marginBottom:4}}>{it.dateStr}{it.condition?' · '+it.condition:''}{it.buyCost>0?' · cost: '+fmt(it.buyCost):''}</div>
-                    <div style={{fontSize:11,marginBottom:8}}><span style={{color:'#8b949e'}}>Profit est: </span><span style={{color:(it.price-calcFees(it.price)-(it.buyCost||0))>=0?'#3fb950':'#f85149',fontWeight:600}}>{fmt(it.price-calcFees(it.price)-(it.buyCost||0))}</span></div>
+                    <div style={{fontSize:11,color:'var(--text-2)',marginBottom:4}}>{it.dateStr}{it.condition?' · '+it.condition:''}{it.buyCost>0?' · cost: '+fmt(it.buyCost):''}</div>
+                    <div style={{fontSize:11,marginBottom:8}}><span style={{color:'var(--text-2)'}}>Profit est: </span><span style={{color:(it.price-calcFees(it.price)-(it.buyCost||0))>=0?'var(--green)':'var(--red)',fontWeight:600}}>{fmt(it.price-calcFees(it.price)-(it.buyCost||0))}</span></div>
                     <div style={mFoot}>
                       <QtyCell value={iq(it)} onChange={n=>setItems(p=>p.map(x=>x.id===it.id?{...x,qty:n}:x))}/>
                       <div style={S.acts}>
                         <IBtn href={ebayUrl(it.name)} title="Search eBay sold">🔍</IBtn>
-                        <IBtn onClick={()=>setItems(p=>p.map(x=>x.id===it.id?{...x,status:'listed',listedAt:todayEnGB()}:x))} title="Move to listings" col="#58a6ff">→</IBtn>
-                        <IBtn onClick={()=>{if(confirm('Remove this item?'))setItems(p=>p.filter(x=>x.id!==it.id));}} title="Remove" col="#f85149">✕</IBtn>
+                        <IBtn onClick={()=>setItems(p=>p.map(x=>x.id===it.id?{...x,status:'listed',listedAt:todayEnGB()}:x))} title="Move to listings" col="var(--blue)">→</IBtn>
+                        <IBtn onClick={()=>{if(confirm('Remove this item?'))setItems(p=>p.filter(x=>x.id!==it.id));}} title="Remove" col="var(--red)">✕</IBtn>
                       </div>
                     </div>
                   </div>
@@ -905,18 +905,18 @@ export default function App(){
                 <tbody>
                   {filteredItems.length===0&&<tr><td colSpan={6} style={S.empty}>No items — click ＋ Add item to get started</td></tr>}
                   {filteredItems.map((it,i)=>(
-                    <tr key={it.id} style={{background:isInvSel(it.id)?'#1c2f4a':i%2===0?'transparent':'#161b22'}}>
+                    <tr key={it.id} style={{background:isInvSel(it.id)?'var(--blue-a)':i%2===0?'transparent':'var(--surface)'}}>
                       <td style={{...S.td,textAlign:'center'}}><input type="checkbox" style={S.chk} checked={isInvSel(it.id)} onChange={()=>toggleInvSel(it.id)}/></td>
-                      <td style={{...S.td,cursor:'pointer'}} onClick={()=>setDetailItem(it)}><span style={{display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'#58a6ff'}} title={it.name}>{it.name}</span>{it.condition&&<span style={{fontSize:10,color:'#8b949e',display:'block'}}>{it.condition}</span>}</td>
+                      <td style={{...S.td,cursor:'pointer'}} onClick={()=>setDetailItem(it)}><span style={{display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'var(--blue)'}} title={it.name}>{it.name}</span>{it.condition&&<span style={{fontSize:10,color:'var(--text-2)',display:'block'}}>{it.condition}</span>}</td>
                       <td style={S.td}><QtyCell value={iq(it)} onChange={n=>setItems(p=>p.map(x=>x.id===it.id?{...x,qty:n}:x))}/></td>
-                      <td style={{...S.td,color:'#8b949e',fontSize:11}}>{it.dateStr}</td>
-                      <td style={{...S.td,textAlign:'right',color:'#f0883e',fontWeight:600}}>{fmt(it.price)}</td>
-                      <td style={{...S.td,textAlign:'right',color:it.buyCost>0?'#f85149':'#6e7681',fontSize:11}}>{it.buyCost>0?fmt(it.buyCost):'—'}</td>
-                      <td style={{...S.td,textAlign:'right',fontSize:11}}>{(()=>{const p=it.price-calcFees(it.price)-(it.buyCost||0);return <span style={{color:p>=0?'#3fb950':'#f85149',fontWeight:p>0?600:400}}>{fmt(p)}</span>;})()}</td>
+                      <td style={{...S.td,color:'var(--text-2)',fontSize:11}}>{it.dateStr}</td>
+                      <td style={{...S.td,textAlign:'right',color:'var(--accent)',fontWeight:600}}>{fmt(it.price)}</td>
+                      <td style={{...S.td,textAlign:'right',color:it.buyCost>0?'var(--red)':'var(--text-3)',fontSize:11}}>{it.buyCost>0?fmt(it.buyCost):'—'}</td>
+                      <td style={{...S.td,textAlign:'right',fontSize:11}}>{(()=>{const p=it.price-calcFees(it.price)-(it.buyCost||0);return <span style={{color:p>=0?'var(--green)':'var(--red)',fontWeight:p>0?600:400}}>{fmt(p)}</span>;})()}</td>
                       <td style={S.td}><div style={S.acts}>
                         <IBtn href={ebayUrl(it.name)} title="Search eBay sold prices">🔍</IBtn>
-                        <IBtn onClick={()=>setItems(p=>p.map(x=>x.id===it.id?{...x,status:'listed',listedAt:todayEnGB()}:x))} title="Move to Active Listings without opening eBay" col="#58a6ff">→</IBtn>
-                        <IBtn onClick={()=>{if(confirm('Remove this item?'))setItems(p=>p.filter(x=>x.id!==it.id));}} title="Remove" col="#f85149">✕</IBtn>
+                        <IBtn onClick={()=>setItems(p=>p.map(x=>x.id===it.id?{...x,status:'listed',listedAt:todayEnGB()}:x))} title="Move to Active Listings without opening eBay" col="var(--blue)">→</IBtn>
+                        <IBtn onClick={()=>{if(confirm('Remove this item?'))setItems(p=>p.filter(x=>x.id!==it.id));}} title="Remove" col="var(--red)">✕</IBtn>
                       </div></td>
                     </tr>
                   ))}
@@ -934,7 +934,7 @@ export default function App(){
           const listVal=filteredListed.reduce((s,it)=>s+it.price*iq(it),0);
           return<>
             {totalAllListed===0&&lstSearch===''
-              ?<div style={S.empty}><div style={{fontSize:32,marginBottom:8}}>🏷️</div>No active listings.<br/><span style={{fontSize:12}}>Go to <span style={{color:'#58a6ff',cursor:'pointer'}} onClick={()=>setTab('inventory')}>Inventory</span> and press → to list an item.</span></div>
+              ?<div style={S.empty}><div style={{fontSize:32,marginBottom:8}}>🏷️</div>No active listings.<br/><span style={{fontSize:12}}>Go to <span style={{color:'var(--blue)',cursor:'pointer'}} onClick={()=>setTab('inventory')}>Inventory</span> and press → to list an item.</span></div>
               :<>
                 <div className="rt-cat-tabs">
                   {cats.map(c=>(
@@ -949,27 +949,27 @@ export default function App(){
                     {SORT_OPTS.map(([v,l])=><option key={v} value={v}>{l}</option>)}
                   </select>
                   {lstSel.length>0&&<>
-                    <span style={{fontSize:12,color:'#58a6ff'}}>{lstSel.length} selected</span>
+                    <span style={{fontSize:12,color:'var(--blue)'}}>{lstSel.length} selected</span>
                     {lstSel.length>=2&&<button style={S.addBtn} onClick={openBundleSell}>📦 Bundle sale</button>}
                     <button style={{...S.mBtn,fontSize:12,padding:'5px 10px'}} onClick={()=>setLstSel([])}>Clear</button>
                   </>}
-                  <span style={{fontSize:12,color:'#8b949e',marginLeft:lstSel.length>0?0:'auto'}}>Listed value: <strong style={{color:'#f0883e'}}>{fmt(listVal)}</strong></span>
+                  <span style={{fontSize:12,color:'var(--text-2)',marginLeft:lstSel.length>0?0:'auto'}}>Listed value: <strong style={{color:'var(--accent)'}}>{fmt(listVal)}</strong></span>
                 </div>
-                {filteredListed.length>0&&<p style={{fontSize:11,color:'#6e7681',margin:'0 0 8px'}}>Tick items sold together to log a bundle sale with shared postage.</p>}
+                {filteredListed.length>0&&<p style={{fontSize:11,color:'var(--text-3)',margin:'0 0 8px'}}>Tick items sold together to log a bundle sale with shared postage.</p>}
                 {filteredListed.length===0
                   ?<div style={S.empty}>Nothing listed in this category yet. Press → on an item to list it.</div>
                   :<>
                     {isMobile ? (
                       <div>
                         {filteredListed.map(it=>(
-                          <div key={it.id} style={{...mCard,background:isSel(curLstCat,it.id)?'#1c2f4a':'#161b22'}}>
+                          <div key={it.id} style={{...mCard,background:isSel(curLstCat,it.id)?'var(--blue-a)':'var(--surface)'}}>
                             <div style={mRow}>
                               <div style={{flex:1,paddingRight:8}}>
-                                <div style={{fontWeight:600,fontSize:14,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'#58a6ff',cursor:'pointer'}} onClick={()=>setDetailItem(it)}>{it.name}</div>
+                                <div style={{fontWeight:600,fontSize:14,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'var(--blue)',cursor:'pointer'}} onClick={()=>setDetailItem(it)}>{it.name}</div>
                                 <div style={mSub}>Listed {it.listedAt||it.dateStr||'—'}{it.buyCost>0?' · cost '+fmt(it.buyCost):''}</div>
-                                <div style={{fontSize:11,marginTop:2}}><span style={{color:'#8b949e'}}>Profit est: </span><span style={{color:(it.price-calcFees(it.price)-(it.buyCost||0))>=0?'#3fb950':'#f85149',fontWeight:600}}>{fmt(it.price-calcFees(it.price)-(it.buyCost||0))}</span></div>
+                                <div style={{fontSize:11,marginTop:2}}><span style={{color:'var(--text-2)'}}>Profit est: </span><span style={{color:(it.price-calcFees(it.price)-(it.buyCost||0))>=0?'var(--green)':'var(--red)',fontWeight:600}}>{fmt(it.price-calcFees(it.price)-(it.buyCost||0))}</span></div>
                               </div>
-                              <div style={{fontSize:20,fontWeight:700,color:'#f0883e',flexShrink:0}}>{fmt(it.price)}</div>
+                              <div style={{fontSize:20,fontWeight:700,color:'var(--accent)',flexShrink:0}}>{fmt(it.price)}</div>
                             </div>
                             <div style={mFoot}>
                               <div style={{display:'flex',alignItems:'center',gap:6}}>
@@ -978,8 +978,8 @@ export default function App(){
                               </div>
                               <div style={S.acts}>
                                 <IBtn href={ebayUrl(it.name)} title="Search eBay sold">🔍</IBtn>
-                                <IBtn onClick={()=>{setSellItem(it);setSoldP(it.price.toFixed(2));setMoneyInP('');setPostageP('');setSellQtyIn('1');}} title="Log sale" col="#3fb950">£</IBtn>
-                                <IBtn onClick={()=>setItems(p=>p.map(x=>x.id===it.id?{...x,status:'stock'}:x))} title="Back to inventory" col="#8b949e">←</IBtn>
+                                <IBtn onClick={()=>{setSellItem(it);setSoldP(it.price.toFixed(2));setMoneyInP('');setPostageP('');setSellQtyIn('1');}} title="Log sale" col="var(--green)">£</IBtn>
+                                <IBtn onClick={()=>setItems(p=>p.map(x=>x.id===it.id?{...x,status:'stock'}:x))} title="Back to inventory" col="var(--text-2)">←</IBtn>
                               </div>
                             </div>
                           </div>
@@ -1000,19 +1000,19 @@ export default function App(){
                         </tr></thead>
                         <tbody>
                           {filteredListed.map((it,i)=>(
-                            <tr key={it.id} style={{background:isSel(curLstCat,it.id)?'#1c2f4a':i%2===0?'transparent':'#161b22'}}>
+                            <tr key={it.id} style={{background:isSel(curLstCat,it.id)?'var(--blue-a)':i%2===0?'transparent':'var(--surface)'}}>
                               <td style={{...S.td,textAlign:'center'}}><input type="checkbox" style={S.chk} checked={isSel(curLstCat,it.id)} onChange={()=>toggleSel(curLstCat,it)}/></td>
-                              <td style={{...S.td,cursor:'pointer'}} onClick={()=>setDetailItem(it)}><span style={{display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'#58a6ff'}} title={it.name}>{it.name}</span>{it.condition&&<span style={{fontSize:10,color:'#8b949e',display:'block'}}>{it.condition}</span>}</td>
+                              <td style={{...S.td,cursor:'pointer'}} onClick={()=>setDetailItem(it)}><span style={{display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'var(--blue)'}} title={it.name}>{it.name}</span>{it.condition&&<span style={{fontSize:10,color:'var(--text-2)',display:'block'}}>{it.condition}</span>}</td>
                               <td style={S.td}><QtyCell value={iq(it)} onChange={n=>setItems(p=>p.map(x=>x.id===it.id?{...x,qty:n}:x))}/></td>
-                              <td style={{...S.td,color:'#8b949e',fontSize:11}}>{it.listedAt||it.dateStr||'—'}</td>
-                              <td style={{...S.td,textAlign:'right',color:'#f0883e',fontWeight:600}}>{fmt(it.price)}</td>
-                              <td style={{...S.td,textAlign:'right',color:it.buyCost>0?'#f85149':'#6e7681',fontSize:11}}>{it.buyCost>0?fmt(it.buyCost):'—'}</td>
-                              <td style={{...S.td,textAlign:'right',fontSize:11}}>{(()=>{const p=it.price-calcFees(it.price)-(it.buyCost||0);return <span style={{color:p>=0?'#3fb950':'#f85149',fontWeight:p>0?600:400}}>{fmt(p)}</span>;})()}</td>
+                              <td style={{...S.td,color:'var(--text-2)',fontSize:11}}>{it.listedAt||it.dateStr||'—'}</td>
+                              <td style={{...S.td,textAlign:'right',color:'var(--accent)',fontWeight:600}}>{fmt(it.price)}</td>
+                              <td style={{...S.td,textAlign:'right',color:it.buyCost>0?'var(--red)':'var(--text-3)',fontSize:11}}>{it.buyCost>0?fmt(it.buyCost):'—'}</td>
+                              <td style={{...S.td,textAlign:'right',fontSize:11}}>{(()=>{const p=it.price-calcFees(it.price)-(it.buyCost||0);return <span style={{color:p>=0?'var(--green)':'var(--red)',fontWeight:p>0?600:400}}>{fmt(p)}</span>;})()}</td>
                               <td style={S.td}><div style={S.acts}>
                                 <IBtn href={ebayUrl(it.name)} title="eBay sold listings">🔍</IBtn>
-                                <IBtn onClick={()=>{setSellItem(it);setSoldP(it.price.toFixed(2));setMoneyInP('');setPostageP('');setSellQtyIn('1');}} title="Log sale" col="#3fb950">£</IBtn>
-                                <IBtn onClick={()=>setItems(p=>p.map(x=>x.id===it.id?{...x,status:'stock'}:x))} title="Move back to inventory" col="#8b949e">←</IBtn>
-                                <IBtn onClick={()=>{if(confirm('Remove?'))setItems(p=>p.filter(x=>x.id!==it.id));}} title="Remove" col="#f85149">✕</IBtn>
+                                <IBtn onClick={()=>{setSellItem(it);setSoldP(it.price.toFixed(2));setMoneyInP('');setPostageP('');setSellQtyIn('1');}} title="Log sale" col="var(--green)">£</IBtn>
+                                <IBtn onClick={()=>setItems(p=>p.map(x=>x.id===it.id?{...x,status:'stock'}:x))} title="Move back to inventory" col="var(--text-2)">←</IBtn>
+                                <IBtn onClick={()=>{if(confirm('Remove?'))setItems(p=>p.filter(x=>x.id!==it.id));}} title="Remove" col="var(--red)">✕</IBtn>
                               </div></td>
                             </tr>
                           ))}
@@ -1038,14 +1038,14 @@ export default function App(){
           <div style={S.cCard}>
             <div style={S.cH}>Bundle entry — {feeLabel} · {sym}{(cfg.postage||1).toFixed(2)} postage/item</div>
             <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-              <span style={{fontSize:13,color:'#8b949e',whiteSpace:'nowrap'}}>Item value ({sym})</span>
+              <span style={{fontSize:13,color:'var(--text-2)',whiteSpace:'nowrap'}}>Item value ({sym})</span>
               <input style={{...S.fInp,width:120}} type="number" step="0.01" min="0" value={bundleIn} onChange={e=>setBundleIn(e.target.value)}
                 onKeyDown={e=>{if(e.key==='Enter'){const v=parseFloat(bundleIn);if(v>0){setBundle(p=>[...p,v]);setBundleIn('');}}}
                 } placeholder="0.00"/>
               <button style={S.addBtn} onClick={()=>{const v=parseFloat(bundleIn);if(v>0){setBundle(p=>[...p,v]);setBundleIn('');}else alert('Enter a value');}}>＋ Add</button>
               {bundle.length>0&&<button style={{...S.mBtn,fontSize:12,padding:'5px 10px'}} onClick={()=>setBundle([])}>Clear all</button>}
               <div style={{display:'flex',alignItems:'center',gap:6,marginLeft:'auto'}}>
-                <span style={{fontSize:12,color:'#8b949e',whiteSpace:'nowrap'}}>Margin %</span>
+                <span style={{fontSize:12,color:'var(--text-2)',whiteSpace:'nowrap'}}>Margin %</span>
                 <input style={{...S.fInp,width:70,textAlign:'center'}} type="number" min="1" max="100" step="1" value={margin} onChange={e=>setMargin(e.target.value)} title="Percentage of net value you want to pay"/>
               </div>
             </div>
@@ -1066,13 +1066,13 @@ export default function App(){
                   <tbody>
                     {bundle.map((p,i)=>{
                       const fee=calcFees(p); const net=+(p-fee-(cfg.postage||1)).toFixed(2);
-                      return <tr key={i} style={{background:i%2===0?'transparent':'#161b22'}}>
-                        <td style={{...S.td,color:'#8b949e',fontSize:11}}>{i+1}</td>
-                        <td style={{...S.td,textAlign:'right',color:'#f0883e',fontWeight:600}}>{sym}{p.toFixed(2)}</td>
-                        <td style={{...S.td,textAlign:'right',color:'#f85149',fontSize:12}}>−{sym}{fee.toFixed(2)}</td>
-                        <td style={{...S.td,textAlign:'right',color:'#f85149',fontSize:12}}>−{sym}{(cfg.postage||1).toFixed(2)}</td>
-                        <td style={{...S.td,textAlign:'right',fontWeight:600,color:net>=0?'#e6edf3':'#f85149'}}>{sym}{net.toFixed(2)}</td>
-                        <td style={S.td}><IBtn onClick={()=>setBundle(p2=>p2.filter((_,j)=>j!==i))} col="#f85149">✕</IBtn></td>
+                      return <tr key={i} style={{background:i%2===0?'transparent':'var(--surface)'}}>
+                        <td style={{...S.td,color:'var(--text-2)',fontSize:11}}>{i+1}</td>
+                        <td style={{...S.td,textAlign:'right',color:'var(--accent)',fontWeight:600}}>{sym}{p.toFixed(2)}</td>
+                        <td style={{...S.td,textAlign:'right',color:'var(--red)',fontSize:12}}>−{sym}{fee.toFixed(2)}</td>
+                        <td style={{...S.td,textAlign:'right',color:'var(--red)',fontSize:12}}>−{sym}{(cfg.postage||1).toFixed(2)}</td>
+                        <td style={{...S.td,textAlign:'right',fontWeight:600,color:net>=0?'var(--text-1)':'var(--red)'}}>{sym}{net.toFixed(2)}</td>
+                        <td style={S.td}><IBtn onClick={()=>setBundle(p2=>p2.filter((_,j)=>j!==i))} col="var(--red)">✕</IBtn></td>
                       </tr>;
                     })}
                   </tbody>
@@ -1080,14 +1080,14 @@ export default function App(){
               </div>
               <div style={{...S.cCard,marginTop:12}}>
                 <div style={S.cH}>Summary</div>
-                {[[`Total listed value`,`${sym}${bundleGross.toFixed(2)}`,null],[`eBay fees × ${bundle.length}`,`−${sym}${bundleFeeTotal.toFixed(2)}`,'#f85149'],[`Postage × ${bundle.length}`,`−${sym}${bundlePostage.toFixed(2)}`,'#f85149']].map(([l,v,c])=>(
-                  <div key={l} style={S.bRow}><span style={{color:'#8b949e'}}>{l}</span><span style={c?{color:c}:{}}>{v}</span></div>
+                {[[`Total listed value`,`${sym}${bundleGross.toFixed(2)}`,null],[`eBay fees × ${bundle.length}`,`−${sym}${bundleFeeTotal.toFixed(2)}`,'var(--red)'],[`Postage × ${bundle.length}`,`−${sym}${bundlePostage.toFixed(2)}`,'var(--red)']].map(([l,v,c])=>(
+                  <div key={l} style={S.bRow}><span style={{color:'var(--text-2)'}}>{l}</span><span style={c?{color:c}:{}}>{v}</span></div>
                 ))}
-                <div style={{...S.bRow,borderBottom:'none',paddingTop:8,marginTop:4,borderTop:'1px solid #30363d'}}><span style={{fontWeight:600}}>Total net value</span><span style={{fontWeight:700}}>{sym}{bundleNet.toFixed(2)}</span></div>
+                <div style={{...S.bRow,borderBottom:'none',paddingTop:8,marginTop:4,borderTop:'1px solid var(--border)'}}><span style={{fontWeight:600}}>Total net value</span><span style={{fontWeight:700}}>{sym}{bundleNet.toFixed(2)}</span></div>
               </div>
-              <div style={{marginTop:10,background:'#1a2f1a',border:'1px solid #238636',borderRadius:8,padding:'14px 18px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <div><div style={{fontSize:12,color:'#7ee787',fontWeight:500,marginBottom:2}}>Amount you should pay</div><div style={{fontSize:11,color:'#3fb950',opacity:.8}}>{marginPct}% of net value after fees and postage</div></div>
-                <div style={{fontSize:32,fontWeight:700,color:'#3fb950'}}>{sym}{bundlePay.toFixed(2)}</div>
+              <div style={{marginTop:10,background:'var(--green-a)',border:'1px solid var(--green)',borderRadius:8,padding:'14px 18px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <div><div style={{fontSize:12,color:'#7ee787',fontWeight:500,marginBottom:2}}>Amount you should pay</div><div style={{fontSize:11,color:'var(--green)',opacity:.8}}>{marginPct}% of net value after fees and postage</div></div>
+                <div style={{fontSize:32,fontWeight:700,color:'var(--green)'}}>{sym}{bundlePay.toFixed(2)}</div>
               </div>
             </>
           }
@@ -1105,34 +1105,34 @@ export default function App(){
           const avgFee=tSp>0?+((tFees/tSp)*100).toFixed(1):0;
           return <>
             <div style={{...S.iCard,marginBottom:12,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:12}}>
-              <div><div style={{fontSize:11,color:'#8b949e',marginBottom:4}}>Average eBay fee rate</div><div style={{fontSize:28,fontWeight:700,color:'#f85149',lineHeight:1.1}}>{avgFee}%</div><div style={{fontSize:11,color:'#6e7681',marginTop:6}}>{logged.length} sale{logged.length!==1?'s':''} · {fmt(tFees)} total fees</div></div>
-              <div style={{fontSize:12,color:'#8b949e',textAlign:'right'}}><div>Total revenue: <strong style={{color:'#e6edf3'}}>{fmt(tSp)}</strong></div><div>Total money in: <strong style={{color:'#f0883e'}}>{fmt(tMi)}</strong></div></div>
+              <div><div style={{fontSize:11,color:'var(--text-2)',marginBottom:4}}>Average eBay fee rate</div><div style={{fontSize:28,fontWeight:700,color:'var(--red)',lineHeight:1.1}}>{avgFee}%</div><div style={{fontSize:11,color:'var(--text-3)',marginTop:6}}>{logged.length} sale{logged.length!==1?'s':''} · {fmt(tFees)} total fees</div></div>
+              <div style={{fontSize:12,color:'var(--text-2)',textAlign:'right'}}><div>Total revenue: <strong style={{color:'var(--text-1)'}}>{fmt(tSp)}</strong></div><div>Total money in: <strong style={{color:'var(--accent)'}}>{fmt(tMi)}</strong></div></div>
             </div>
             <div style={{...S.sRow,padding:0,marginBottom:12,gridTemplateColumns:'repeat(4,1fr)'}}>
               <div style={S.sCard}><span style={S.sV}>{logged.reduce((a,x)=>a+(x.qty||1),0)}</span><span style={S.sL}>Items sold</span></div>
-              <div style={S.sCard}><span style={{...S.sV,color:'#f0883e'}}>{fmt(tMi)}</span><span style={S.sL}>Total money in</span></div>
-              <div style={S.sCard}><span style={{...S.sV,color:'#f85149'}}>{fmt(tPost)}</span><span style={S.sL}>Total postage</span></div>
-              <div style={S.sCard}><span style={{...S.sV,color:tProfit>=0?'#3fb950':'#f85149'}}>{fmt(tProfit)}</span><span style={S.sL}>Total profit</span></div>
+              <div style={S.sCard}><span style={{...S.sV,color:'var(--accent)'}}>{fmt(tMi)}</span><span style={S.sL}>Total money in</span></div>
+              <div style={S.sCard}><span style={{...S.sV,color:'var(--red)'}}>{fmt(tPost)}</span><span style={S.sL}>Total postage</span></div>
+              <div style={S.sCard}><span style={{...S.sV,color:tProfit>=0?'var(--green)':'var(--red)'}}>{fmt(tProfit)}</span><span style={S.sL}>Total profit</span></div>
             </div>
             {isMobile ? (
               <div>
                 {sales.map(sa=>(
-                  <div key={sa.id} style={{...mCard,opacity:sa.refunded?.6:1,background:sa.refunded?'#1c1410':'#161b22'}}>
+                  <div key={sa.id} style={{...mCard,opacity:sa.refunded?.6:1,background:sa.refunded?'var(--amber-a)':'var(--surface)'}}>
                     <div style={mRow}>
                       <div style={{flex:1,paddingRight:8}}>
                         <div style={{fontWeight:600,fontSize:13,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{sa.itemName}{sa.refunded?' (refunded)':''}{sa.bundleId?' 📦':''}</div>
                         <div style={mSub}>{sa.date} · qty {sa.qty||1}{sa.buyCost>0?' · cost '+fmt(sa.buyCost):''}</div>
                       </div>
                       <div style={{textAlign:'right',flexShrink:0}}>
-                        {(()=>{ const tp=sa.profit-(sa.buyCost||0)*(sa.qty||1); return <><div style={{fontSize:16,fontWeight:700,color:tp>=0?'#3fb950':'#f85149'}}>{fmt(tp)}</div><div style={{fontSize:11,color:'#8b949e'}}>in: {fmt(moneyReceived(sa))}</div></>; })()}
+                        {(()=>{ const tp=sa.profit-(sa.buyCost||0)*(sa.qty||1); return <><div style={{fontSize:16,fontWeight:700,color:tp>=0?'var(--green)':'var(--red)'}}>{fmt(tp)}</div><div style={{fontSize:11,color:'var(--text-2)'}}>in: {fmt(moneyReceived(sa))}</div></>; })()}
                       </div>
                     </div>
-                    <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#8b949e'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'var(--text-2)'}}>
                       <span>Sale: {fmt(sa.soldPrice)}</span>
                       {sa.postage>0&&<span>Post: -{fmt(sa.postage)}</span>}
                       <div style={S.acts}>
-                        {!sa.refunded&&<IBtn onClick={()=>refundSale(sa)} title="Refund" col="#d29922">↩</IBtn>}
-                        <IBtn onClick={()=>{if(confirm('Delete?'))setSales(p=>p.filter(x=>x.id!==sa.id));}} title="Delete" col="#f85149">✕</IBtn>
+                        {!sa.refunded&&<IBtn onClick={()=>refundSale(sa)} title="Refund" col="var(--amber)">↩</IBtn>}
+                        <IBtn onClick={()=>{if(confirm('Delete?'))setSales(p=>p.filter(x=>x.id!==sa.id));}} title="Delete" col="var(--red)">✕</IBtn>
                       </div>
                     </div>
                   </div>
@@ -1154,18 +1154,18 @@ export default function App(){
                 </tr></thead>
                 <tbody>
                   {sales.map((sa,i)=>(
-                    <tr key={sa.id} style={{background:sa.refunded?'#1c1410':i%2===0?'transparent':'#161b22',opacity:sa.refunded?.6:1}}>
+                    <tr key={sa.id} style={{background:sa.refunded?'var(--amber-a)':i%2===0?'transparent':'var(--surface)',opacity:sa.refunded?.6:1}}>
                       <td style={S.td}><span style={{display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={sa.itemName}>{sa.itemName}{sa.refunded?' (refunded)':''}{sa.bundleId?' 📦':''}</span></td>
-                      <td style={{...S.td,color:'#8b949e',fontSize:11}}>{sa.date}</td>
-                      <td style={{...S.td,textAlign:'center',color:'#8b949e'}}>{sa.qty||1}</td>
-                      <td style={{...S.td,textAlign:'right',color:'#8b949e'}}>{fmt(sa.soldPrice)}</td>
-                      <td style={{...S.td,textAlign:'right',color:'#f0883e',fontWeight:600}}>{fmt(moneyReceived(sa))}</td>
-                      <td style={{...S.td,textAlign:'right',color:sa.postage>0?'#f85149':'#8b949e',fontSize:11}}>{sa.postage>0?'−'+fmt(sa.postage):'—'}</td>
-                      <td style={{...S.td,textAlign:'right',color:sa.buyCost>0?'#f85149':'#6e7681',fontSize:11}}>{sa.buyCost>0?'−'+fmt(sa.buyCost*(sa.qty||1)):'—'}</td>
-                      <td style={{...S.td,textAlign:'right',fontWeight:700}}>{(()=>{const tp=sa.profit-(sa.buyCost||0)*(sa.qty||1);return <span style={{color:tp>=0?'#3fb950':'#f85149'}}>{fmt(tp)}</span>;})()}</td>
+                      <td style={{...S.td,color:'var(--text-2)',fontSize:11}}>{sa.date}</td>
+                      <td style={{...S.td,textAlign:'center',color:'var(--text-2)'}}>{sa.qty||1}</td>
+                      <td style={{...S.td,textAlign:'right',color:'var(--text-2)'}}>{fmt(sa.soldPrice)}</td>
+                      <td style={{...S.td,textAlign:'right',color:'var(--accent)',fontWeight:600}}>{fmt(moneyReceived(sa))}</td>
+                      <td style={{...S.td,textAlign:'right',color:sa.postage>0?'var(--red)':'var(--text-2)',fontSize:11}}>{sa.postage>0?'−'+fmt(sa.postage):'—'}</td>
+                      <td style={{...S.td,textAlign:'right',color:sa.buyCost>0?'var(--red)':'var(--text-3)',fontSize:11}}>{sa.buyCost>0?'−'+fmt(sa.buyCost*(sa.qty||1)):'—'}</td>
+                      <td style={{...S.td,textAlign:'right',fontWeight:700}}>{(()=>{const tp=sa.profit-(sa.buyCost||0)*(sa.qty||1);return <span style={{color:tp>=0?'var(--green)':'var(--red)'}}>{fmt(tp)}</span>;})()}</td>
                       <td style={S.td}><div style={S.acts}>
-                        {!sa.refunded&&<IBtn onClick={()=>refundSale(sa)} title="Refund & restore to inventory" col="#d29922">↩</IBtn>}
-                        <IBtn onClick={()=>{if(confirm('Delete this sale record?'))setSales(p=>p.filter(x=>x.id!==sa.id));}} title="Delete" col="#f85149">✕</IBtn>
+                        {!sa.refunded&&<IBtn onClick={()=>refundSale(sa)} title="Refund & restore to inventory" col="var(--amber)">↩</IBtn>}
+                        <IBtn onClick={()=>{if(confirm('Delete this sale record?'))setSales(p=>p.filter(x=>x.id!==sa.id));}} title="Delete" col="var(--red)">✕</IBtn>
                       </div></td>
                     </tr>
                   ))}
@@ -1189,22 +1189,22 @@ export default function App(){
                 </tr></thead>
                 <tbody>
                   {monthlyPL.map((r,i)=>(
-                    <tr key={r.key} style={{background:i%2===0?'transparent':'#161b22'}}>
+                    <tr key={r.key} style={{background:i%2===0?'transparent':'var(--surface)'}}>
                       <td style={{...S.td,fontWeight:500}}>{r.label}</td>
-                      <td style={{...S.td,textAlign:'right',color:'#f0883e'}}>{fmt(r.revenue)}</td>
-                      <td style={{...S.td,textAlign:'right',color:'#f85149',fontSize:11}}>−{fmt(r.fees)}</td>
-                      <td style={{...S.td,textAlign:'right',color:'#f85149',fontSize:11}}>−{fmt(r.postage)}</td>
-                      <td style={{...S.td,textAlign:'right',color:'#f85149',fontSize:11}}>−{fmt(r.stockSpend)}</td>
-                      <td style={{...S.td,textAlign:'right',color:'#f85149',fontSize:11}}>−{fmt(r.postageEquip+r.supplies)}</td>
+                      <td style={{...S.td,textAlign:'right',color:'var(--accent)'}}>{fmt(r.revenue)}</td>
+                      <td style={{...S.td,textAlign:'right',color:'var(--red)',fontSize:11}}>−{fmt(r.fees)}</td>
+                      <td style={{...S.td,textAlign:'right',color:'var(--red)',fontSize:11}}>−{fmt(r.postage)}</td>
+                      <td style={{...S.td,textAlign:'right',color:'var(--red)',fontSize:11}}>−{fmt(r.stockSpend)}</td>
+                      <td style={{...S.td,textAlign:'right',color:'var(--red)',fontSize:11}}>−{fmt(r.postageEquip+r.supplies)}</td>
                       <td style={{...S.td,textAlign:'right',color:'#a371f7',fontSize:11}}>{(r.refunds||0)>0?'−'+fmt(r.refunds||0):'—'}</td>
-                      <td style={{...S.td,textAlign:'right',fontWeight:600,color:r.profit>=0?'#3fb950':'#f85149'}}>{fmt(r.profit)}</td>
-                      <td style={{...S.td,textAlign:'right',fontWeight:700,color:r.netProfit>=0?'#3fb950':'#f85149'}}>{fmt(r.netProfit)}</td>
+                      <td style={{...S.td,textAlign:'right',fontWeight:600,color:r.profit>=0?'var(--green)':'var(--red)'}}>{fmt(r.profit)}</td>
+                      <td style={{...S.td,textAlign:'right',fontWeight:700,color:r.netProfit>=0?'var(--green)':'var(--red)'}}>{fmt(r.netProfit)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <div style={{fontSize:11,color:'#6e7681',marginTop:8}}>Gross profit = revenue minus eBay fees and postage. Net profit = gross minus all business costs (stock, equipment, supplies).</div>
+            <div style={{fontSize:11,color:'var(--text-3)',marginTop:8}}>Gross profit = revenue minus eBay fees and postage. Net profit = gross minus all business costs (stock, equipment, supplies).</div>
           </>;
         })()}
 
@@ -1218,7 +1218,7 @@ export default function App(){
 
       {/* Add category */}
       {showAddCat&&<Modal title="New category" onClose={()=>setShowAddCat(false)}>
-        <p style={{fontSize:12,color:'#8b949e',marginBottom:12}}>You can include an emoji at the start (e.g. 🎮 Yu-Gi-Oh).</p>
+        <p style={{fontSize:12,color:'var(--text-2)',marginBottom:12}}>You can include an emoji at the start (e.g. 🎮 Yu-Gi-Oh).</p>
         <div style={S.field}><label style={S.fLbl}>Category name</label><input style={S.fInp} type="text" value={newCatName} onChange={e=>setNewCatName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addCat()} placeholder="e.g. Trainers, Vintage Tech…" autoFocus/></div>
         <div style={S.mActs}><button style={S.mBtn} onClick={()=>setShowAddCat(false)}>Cancel</button><button style={S.mBtnP} onClick={addCat}>Create</button></div>
       </Modal>}
@@ -1231,7 +1231,7 @@ export default function App(){
           <div style={S.field}><label style={S.fLbl}>Item name</label><input style={S.fInp} type="text" value={addName} onChange={e=>setAddName(e.target.value)} placeholder="Item name" autoFocus/></div>
           <div style={S.field}><label style={S.fLbl}>How many copies?</label><input style={S.fInp} type="number" min="1" step="1" value={addQty} onChange={e=>setAddQty(e.target.value)} placeholder="1"/></div>
           <div style={S.field}><label style={S.fLbl}>Price ({sym}){parseInt(addQty,10)>1?' — per item':''}</label><input style={S.fInp} type="number" step="0.01" min="0" value={addPrice} onChange={e=>setAddPrice(e.target.value)} placeholder="0.00"/></div>
-          <div style={S.field}><label style={S.fLbl}>Item cost ({sym}) — optional</label><input style={S.fInp} type="number" step="0.01" min="0" value={addBuyCost} onChange={e=>setAddBuyCost(e.target.value)} placeholder="What did you pay for this?"/><div style={{fontSize:11,color:'#6e7681',marginTop:3}}>Shown alongside each item to track per-item profit. Not added to overall business costs.</div></div>
+          <div style={S.field}><label style={S.fLbl}>Item cost ({sym}) — optional</label><input style={S.fInp} type="number" step="0.01" min="0" value={addBuyCost} onChange={e=>setAddBuyCost(e.target.value)} placeholder="What did you pay for this?"/><div style={{fontSize:11,color:'var(--text-3)',marginTop:3}}>Shown alongside each item to track per-item profit. Not added to overall business costs.</div></div>
           <div style={S.field}>
             <label style={S.fLbl}>Condition — optional</label>
             <select style={S.fInp} value={addCondition} onChange={e=>setAddCondition(e.target.value)}>
@@ -1253,7 +1253,7 @@ export default function App(){
                 </optgroup>
               ))}
             </select>
-            <div style={{fontSize:11,color:'#6e7681',marginTop:3}}>Used to pre-fill the category when listing on eBay.</div>
+            <div style={{fontSize:11,color:'var(--text-3)',marginTop:3}}>Used to pre-fill the category when listing on eBay.</div>
           </div>
           <div style={S.mActs}>
               <div style={{...S.field,flex:'1 1 100%'}}>
@@ -1267,8 +1267,8 @@ export default function App(){
 
       {/* Duplicate prompt */}
       {dupPrompt&&<Modal title="Item already in stock" onClose={()=>setDupPrompt(null)}>
-        <p style={{fontSize:12,color:'#8b949e',marginBottom:12,lineHeight:1.5}}>
-          <strong style={{color:'#e6edf3'}}>{dupPrompt.dup.name}</strong> is already in inventory (qty {iq(dupPrompt.dup)}).
+        <p style={{fontSize:12,color:'var(--text-2)',marginBottom:12,lineHeight:1.5}}>
+          <strong style={{color:'var(--text-1)'}}>{dupPrompt.dup.name}</strong> is already in inventory (qty {iq(dupPrompt.dup)}).
           Add {dupPrompt.qty} more to that line, or keep a separate entry?
         </p>
         <div style={S.mActs}>
@@ -1280,18 +1280,18 @@ export default function App(){
 
       {/* Log sale */}
       {sellItem&&<Modal title="Log eBay sale" onClose={()=>{setSellItem(null);setSellQtyIn('1');}}>
-        <p style={{fontSize:12,color:'#8b949e',marginBottom:14,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={sellItem.name}>{sellItem.name}{iq(sellItem)>1?` · ${iq(sellItem)} in stock`:''}</p>
+        <p style={{fontSize:12,color:'var(--text-2)',marginBottom:14,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={sellItem.name}>{sellItem.name}{iq(sellItem)>1?` · ${iq(sellItem)} in stock`:''}</p>
         {iq(sellItem)>1&&<div style={S.field}><label style={S.fLbl}>How many sold?</label><input style={S.fInp} type="number" min="1" max={iq(sellItem)} step="1" value={sellQtyIn} onChange={e=>setSellQtyIn(e.target.value)}/></div>}
         <div style={S.field}><label style={S.fLbl}>Money received to your account ({sym}) *</label><input style={S.fInp} type="number" step="0.01" min="0" value={moneyInP} onChange={e=>setMoneyInP(e.target.value)} placeholder="Check PayPal or bank — exact amount" autoFocus/></div>
         <div style={S.field}><label style={S.fLbl}>eBay sale price ({sym}) *</label><input style={S.fInp} type="number" step="0.01" min="0" value={soldP} onChange={e=>setSoldP(e.target.value)} placeholder="What it sold for on the listing"/></div>
         <div style={S.field}><label style={S.fLbl}>Postage you paid ({sym})</label><input style={S.fInp} type="number" step="0.01" min="0" value={postageP} onChange={e=>setPostageP(e.target.value)} placeholder="0.00"/></div>
-        {(spNum>0||miNum>0)&&<div style={{background:'#21262d',borderRadius:6,padding:'10px 12px',fontSize:12}}>
-          {spNum>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'3px 0',color:'#8b949e'}}><span>Sale price</span><span style={{color:'#e6edf3'}}>{fmt(spNum)}</span></div>}
-          {spNum>0&&miNum>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'3px 0',color:'#8b949e'}}><span>eBay fees (sale − received)</span><span style={{color:'#f85149'}}>−{fmt(ebayFeesCalc)}</span></div>}
-          {miNum>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'3px 0',fontWeight:600,color:'#8b949e'}}><span>Money received</span><span style={{color:'#f0883e'}}>{fmt(miNum)}</span></div>}
-          {poNum>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'3px 0',color:'#8b949e'}}><span>Postage paid</span><span style={{color:'#f85149'}}>−{fmt(poNum)}</span></div>}
-          {(sellItem?.buyCost>0)&&<div style={{display:'flex',justifyContent:'space-between',padding:'3px 0',color:'#8b949e'}}><span>Item cost (×{sellQtyNum})</span><span style={{color:'#f85149'}}>−{fmt((sellItem.buyCost||0)*sellQtyNum)}</span></div>}
-          {miNum>0&&(()=>{const tp=sellProfit-(sellItem?.buyCost||0)*sellQtyNum;return <div style={{display:'flex',justifyContent:'space-between',padding:'6px 0 3px',borderTop:'1px solid #30363d',marginTop:4,fontWeight:700,fontSize:13}}><span>True profit</span><span style={{color:tp>=0?'#3fb950':'#f85149'}}>{fmt(tp)}</span></div>;})()}
+        {(spNum>0||miNum>0)&&<div style={{background:'var(--surface-2)',borderRadius:6,padding:'10px 12px',fontSize:12}}>
+          {spNum>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'3px 0',color:'var(--text-2)'}}><span>Sale price</span><span style={{color:'var(--text-1)'}}>{fmt(spNum)}</span></div>}
+          {spNum>0&&miNum>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'3px 0',color:'var(--text-2)'}}><span>eBay fees (sale − received)</span><span style={{color:'var(--red)'}}>−{fmt(ebayFeesCalc)}</span></div>}
+          {miNum>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'3px 0',fontWeight:600,color:'var(--text-2)'}}><span>Money received</span><span style={{color:'var(--accent)'}}>{fmt(miNum)}</span></div>}
+          {poNum>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'3px 0',color:'var(--text-2)'}}><span>Postage paid</span><span style={{color:'var(--red)'}}>−{fmt(poNum)}</span></div>}
+          {(sellItem?.buyCost>0)&&<div style={{display:'flex',justifyContent:'space-between',padding:'3px 0',color:'var(--text-2)'}}><span>Item cost (×{sellQtyNum})</span><span style={{color:'var(--red)'}}>−{fmt((sellItem.buyCost||0)*sellQtyNum)}</span></div>}
+          {miNum>0&&(()=>{const tp=sellProfit-(sellItem?.buyCost||0)*sellQtyNum;return <div style={{display:'flex',justifyContent:'space-between',padding:'6px 0 3px',borderTop:'1px solid var(--border)',marginTop:4,fontWeight:700,fontSize:13}}><span>True profit</span><span style={{color:tp>=0?'var(--green)':'var(--red)'}}>{fmt(tp)}</span></div>;})()}
         </div>}
         <div style={S.mActs}><button style={S.mBtn} onClick={()=>setSellItem(null)}>Cancel</button><button style={S.mBtnP} onClick={confirmSell}>Log sale</button></div>
       </Modal>}
@@ -1306,7 +1306,7 @@ export default function App(){
         const savings=bundlePostageSavings(bundleSell.length,tPost);
         const tProfit=+(tMi-tPost).toFixed(2);
         return <Modal title={`Bundle sale — ${bundleSell.length} items`} wide onClose={()=>{setBundleSell(null);setBundlePost('');setLstSel([]);}}>
-          <p style={{fontSize:12,color:'#8b949e',marginBottom:12}}>Enter each item's sale price and money received. Postage is split proportionally.</p>
+          <p style={{fontSize:12,color:'var(--text-2)',marginBottom:12}}>Enter each item's sale price and money received. Postage is split proportionally.</p>
           {bundleSell.map((row,idx)=>(
             <div key={row.item.id} style={S.bundleLine}>
               <div style={{fontSize:12,fontWeight:600,marginBottom:8,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}} title={row.item.name}>{row.item.name}</div>
@@ -1314,15 +1314,15 @@ export default function App(){
                 <div style={S.field}><label style={{...S.fLbl,fontSize:11}}>Money to account ({sym}) *</label><input style={{...S.fInp,padding:'5px 8px'}} type="number" step="0.01" min="0" value={row.moneyIn} onChange={e=>setBundleSell(p=>p.map((r2,i)=>i===idx?{...r2,moneyIn:e.target.value}:r2))} placeholder="0.00"/></div>
                 <div style={S.field}><label style={{...S.fLbl,fontSize:11}}>eBay sale price ({sym}) *</label><input style={{...S.fInp,padding:'5px 8px'}} type="number" step="0.01" min="0" value={row.soldPrice} onChange={e=>setBundleSell(p=>p.map((r2,i)=>i===idx?{...r2,soldPrice:e.target.value}:r2))} placeholder="0.00"/></div>
               </div>
-              {lines[idx].sp>0&&lines[idx].mi>0&&<div style={{fontSize:11,color:'#8b949e',marginTop:4}}>Fees: {fmt(feesFromInputs(lines[idx].sp,lines[idx].mi))}</div>}
+              {lines[idx].sp>0&&lines[idx].mi>0&&<div style={{fontSize:11,color:'var(--text-2)',marginTop:4}}>Fees: {fmt(feesFromInputs(lines[idx].sp,lines[idx].mi))}</div>}
             </div>
           ))}
           <div style={S.field}><label style={S.fLbl}>Total postage for whole bundle ({sym})</label><input style={S.fInp} type="number" step="0.01" min="0" value={bundlePost} onChange={e=>setBundlePost(e.target.value)} placeholder="One label — split across items"/></div>
-          {(tMi>0||tPost>0)&&<div style={{background:'#21262d',borderRadius:6,padding:'10px 12px',fontSize:12}}>
-            {[[`Total sale price`,fmt(tSp),null],[`Total received`,fmt(tMi),'#f0883e'],[`Total fees`,`−${fmt(tFees)}`,'#f85149'],[`Bundle postage`,`−${fmt(tPost)}`,'#f85149'],savings>0?[`Postage saved vs separate`,fmt(savings),'#3fb950']:null].filter(Boolean).map(([l,v,c])=>(
-              <div key={l} style={{display:'flex',justifyContent:'space-between',padding:'3px 0',color:'#8b949e'}}><span>{l}</span><span style={c?{color:c}:{}}>{v}</span></div>
+          {(tMi>0||tPost>0)&&<div style={{background:'var(--surface-2)',borderRadius:6,padding:'10px 12px',fontSize:12}}>
+            {[[`Total sale price`,fmt(tSp),null],[`Total received`,fmt(tMi),'var(--accent)'],[`Total fees`,`−${fmt(tFees)}`,'var(--red)'],[`Bundle postage`,`−${fmt(tPost)}`,'var(--red)'],savings>0?[`Postage saved vs separate`,fmt(savings),'var(--green)']:null].filter(Boolean).map(([l,v,c])=>(
+              <div key={l} style={{display:'flex',justifyContent:'space-between',padding:'3px 0',color:'var(--text-2)'}}><span>{l}</span><span style={c?{color:c}:{}}>{v}</span></div>
             ))}
-            {tMi>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'6px 0 3px',borderTop:'1px solid #30363d',marginTop:4,fontWeight:700,fontSize:13}}><span>Total profit</span><span style={{color:tProfit>=0?'#3fb950':'#f85149'}}>{fmt(tProfit)}</span></div>}
+            {tMi>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'6px 0 3px',borderTop:'1px solid var(--border)',marginTop:4,fontWeight:700,fontSize:13}}><span>Total profit</span><span style={{color:tProfit>=0?'var(--green)':'var(--red)'}}>{fmt(tProfit)}</span></div>}
           </div>}
           <div style={S.mActs}><button style={S.mBtn} onClick={()=>{setBundleSell(null);setBundlePost('');setLstSel([]);}}>Cancel</button><button style={S.mBtnP} onClick={confirmBundleSell}>Log bundle sale</button></div>
         </Modal>;
@@ -1330,7 +1330,7 @@ export default function App(){
 
       {/* Log spend */}
       {showSpend&&<Modal title="Record business spend" onClose={()=>setShowSpend(false)}>
-        <p style={{fontSize:12,color:'#8b949e',marginBottom:10}}>Stock {fmt(expenses.stock)} · Post equip {fmt(expenses.postage)} · Supplies {fmt(expenses.supplies)} · <strong>{fmt(expenses.all)}</strong> total</p>
+        <p style={{fontSize:12,color:'var(--text-2)',marginBottom:10}}>Stock {fmt(expenses.stock)} · Post equip {fmt(expenses.postage)} · Supplies {fmt(expenses.supplies)} · <strong>{fmt(expenses.all)}</strong> total</p>
         <div style={S.field}>
           <label style={S.fLbl}>Category</label>
           <div style={{display:'flex',flexDirection:'column',gap:6}}>
@@ -1346,25 +1346,25 @@ export default function App(){
         <div style={S.mActs}><button style={S.mBtn} onClick={()=>setShowSpend(false)}>Cancel</button><button style={S.mBtnP} onClick={addSpend}>Add</button></div>
         {purchases.length>0&&<>
           <div style={{...S.cH,marginTop:16}}>Spend log</div>
-          <div style={{maxHeight:200,overflowY:'auto',border:'1px solid #30363d',borderRadius:6}}>
+          <div style={{maxHeight:200,overflowY:'auto',border:'1px solid var(--border)',borderRadius:6}}>
             <table style={{...S.tbl,tableLayout:'auto'}}>
               <thead><tr>{['Date','Type','Note','Amount',''].map(h=><th key={h} style={{...S.th,fontSize:10}}>{h}</th>)}</tr></thead>
               <tbody>{purchases.map(p=>(
                 <tr key={p.id}>
-                  <td style={{...S.td,fontSize:11,color:'#8b949e'}}>{p.date}</td>
-                  <td style={{...S.td,fontSize:10,color:'#8b949e'}}>{expenseShort(p.type)}</td>
+                  <td style={{...S.td,fontSize:11,color:'var(--text-2)'}}>{p.date}</td>
+                  <td style={{...S.td,fontSize:10,color:'var(--text-2)'}}>{expenseShort(p.type)}</td>
                   <td style={{...S.td,fontSize:11}}>{p.note||'—'}</td>
-                  <td style={{...S.td,textAlign:'right',fontWeight:600,color:'#f85149'}}>{fmt(p.amount)}</td>
-                  <td style={S.td}><IBtn onClick={()=>{if(confirm('Delete?'))setPurchases(p2=>p2.filter(x=>x.id!==p.id));}} title="Delete" col="#f85149">✕</IBtn></td>
+                  <td style={{...S.td,textAlign:'right',fontWeight:600,color:'var(--red)'}}>{fmt(p.amount)}</td>
+                  <td style={S.td}><IBtn onClick={()=>{if(confirm('Delete?'))setPurchases(p2=>p2.filter(x=>x.id!==p.id));}} title="Delete" col="var(--red)">✕</IBtn></td>
                 </tr>
               ))}</tbody>
             </table>
           </div>
         </>}
-        {spendType==='stock'&&<div style={{borderTop:'1px solid #30363d',marginTop:16,paddingTop:14}}>
+        {spendType==='stock'&&<div style={{borderTop:'1px solid var(--border)',marginTop:16,paddingTop:14}}>
           <div style={S.field}><label style={S.fLbl}>Or: set stock total to ({sym})</label><input style={S.fInp} type="number" step="0.01" min="0" value={spendSetTotal} onChange={e=>setSpendSetTotal(e.target.value)} onKeyDown={e=>e.key==='Enter'&&setStockTotal()} placeholder="0.00"/></div>
           <div style={{...S.mActs,marginTop:8}}><button style={{...S.mBtn,fontSize:12}} onClick={setStockTotal}>Replace all stock entries</button></div>
-          <p style={{fontSize:11,color:'#6e7681',marginTop:8}}>Removes all existing stock entries and replaces with a single total. Keeps other expense types.</p>
+          <p style={{fontSize:11,color:'var(--text-3)',marginTop:8}}>Removes all existing stock entries and replaces with a single total. Keeps other expense types.</p>
         </div>}
       </Modal>}
 
@@ -1393,29 +1393,29 @@ export default function App(){
       {showAccount&&(
         <Modal title="My Account" onClose={()=>setShowAccount(false)}>
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
-            <div style={{background:'#21262d',borderRadius:8,padding:'12px 14px'}}>
-              <div style={{fontSize:11,color:'#8b949e',marginBottom:3}}>Signed in as</div>
-              <div style={{fontSize:14,fontWeight:500,color:'#e6edf3'}}>{user?.primaryEmailAddress?.emailAddress||'—'}</div>
+            <div style={{background:'var(--surface-2)',borderRadius:8,padding:'12px 14px'}}>
+              <div style={{fontSize:11,color:'var(--text-2)',marginBottom:3}}>Signed in as</div>
+              <div style={{fontSize:14,fontWeight:500,color:'var(--text-1)'}}>{user?.primaryEmailAddress?.emailAddress||'—'}</div>
             </div>
-            <div style={{background:'#21262d',borderRadius:8,padding:'12px 14px'}}>
-              <div style={{fontSize:11,color:'#8b949e',marginBottom:3}}>Subscription status</div>
-              <div style={{fontSize:14,fontWeight:600,color:subStatus==='active'?'#3fb950':subStatus==='cancelled'?'#d29922':'#f85149'}}>
+            <div style={{background:'var(--surface-2)',borderRadius:8,padding:'12px 14px'}}>
+              <div style={{fontSize:11,color:'var(--text-2)',marginBottom:3}}>Subscription status</div>
+              <div style={{fontSize:14,fontWeight:600,color:subStatus==='active'?'var(--green)':subStatus==='cancelled'?'var(--amber)':'var(--red)'}}>
                 {subStatus==='active'?'✅ Active':subStatus==='cancelled'?'⚠️ Cancelled — access until period ends':'❌ Expired'}
               </div>
             </div>
-            {ebayMsg&&<div style={{background:ebayMsg.startsWith('✓')?'#1a2f1a':'#2d1c00',border:`1px solid ${ebayMsg.startsWith('✓')?'#238636':'#9e6a03'}`,borderRadius:6,padding:'8px 10px',fontSize:12,color:ebayMsg.startsWith('✓')?'#3fb950':'#d29922',marginBottom:4}}>{ebayMsg}</div>}
+            {ebayMsg&&<div style={{background:ebayMsg.startsWith('✓')?'var(--green-a)':'var(--amber-a)',border:`1px solid ${ebayMsg.startsWith('✓')?'var(--green)':'var(--amber)'}`,borderRadius:6,padding:'8px 10px',fontSize:12,color:ebayMsg.startsWith('✓')?'var(--green)':'var(--amber)',marginBottom:4}}>{ebayMsg}</div>}
             {/* eBay Listing Setup — policies + location */}
             {ebayStatus?.connected&&(
-              <div style={{background:'#0d1117',border:'1px solid #30363d',borderRadius:8,padding:'14px'}}>
+              <div style={{background:'var(--bg)',border:'1px solid var(--border)',borderRadius:8,padding:'14px'}}>
                 <div style={{fontSize:12,fontWeight:600,marginBottom:8}}>eBay Listing Setup</div>
 
                 {/* Setup instructions */}
-                <div style={{background:'#161b22',border:'1px solid #30363d',borderRadius:6,padding:'10px 12px',fontSize:11,color:'#8b949e',marginBottom:10,lineHeight:1.8}}>
-                  <div style={{color:'#e6edf3',fontWeight:600,marginBottom:4}}>How to set up business policies on eBay:</div>
-                  <div>1. Go to <a href="https://www.ebay.co.uk/bp/manage" target="_blank" rel="noreferrer" style={{color:'#58a6ff'}}>ebay.co.uk/bp/manage ↗</a> (sign in if prompted)</div>
-                  <div>2. Create a <strong style={{color:'#e6edf3'}}>Postage</strong> policy for each shipping tier you use (e.g. "2nd Class", "Signed For", "Tracked 48")</div>
-                  <div>3. Also create one <strong style={{color:'#e6edf3'}}>Payment</strong> and one <strong style={{color:'#e6edf3'}}>Returns</strong> policy</div>
-                  <div>4. Come back here and click <strong style={{color:'#e6edf3'}}>↻ Refresh policies</strong> — all your policies will appear in the dropdowns below with the names you gave them</div>
+                <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:6,padding:'10px 12px',fontSize:11,color:'var(--text-2)',marginBottom:10,lineHeight:1.8}}>
+                  <div style={{color:'var(--text-1)',fontWeight:600,marginBottom:4}}>How to set up business policies on eBay:</div>
+                  <div>1. Go to <a href="https://www.ebay.co.uk/bp/manage" target="_blank" rel="noreferrer" style={{color:'var(--blue)'}}>ebay.co.uk/bp/manage ↗</a> (sign in if prompted)</div>
+                  <div>2. Create a <strong style={{color:'var(--text-1)'}}>Postage</strong> policy for each shipping tier you use (e.g. "2nd Class", "Signed For", "Tracked 48")</div>
+                  <div>3. Also create one <strong style={{color:'var(--text-1)'}}>Payment</strong> and one <strong style={{color:'var(--text-1)'}}>Returns</strong> policy</div>
+                  <div>4. Come back here and click <strong style={{color:'var(--text-1)'}}>↻ Refresh policies</strong> — all your policies will appear in the dropdowns below with the names you gave them</div>
                 </div>
 
                 <button style={{...S.mBtn,fontSize:11,padding:'4px 10px',marginBottom:10}} onClick={()=>{fetchEbayPolicies();fetchEbayLocation();}}>
@@ -1424,17 +1424,17 @@ export default function App(){
 
                 {/* Hint banners */}
                 {ebayPolicies?.hint==='not_opted_in'&&(
-                  <div style={{background:'#2d1c00',border:'1px solid #9e6a03',borderRadius:6,padding:'8px 10px',fontSize:11,color:'#d29922',marginBottom:8}}>
+                  <div style={{background:'var(--amber-a)',border:'1px solid var(--amber)',borderRadius:6,padding:'8px 10px',fontSize:11,color:'var(--amber)',marginBottom:8}}>
                     ⚠ No policies found. Follow the steps above to create them on eBay, then click ↻ Refresh policies.
                   </div>
                 )}
                 {ebayPolicies?.hint==='missing_scope'&&(
-                  <div style={{background:'#2d1c00',border:'1px solid #9e6a03',borderRadius:6,padding:'8px 10px',fontSize:11,color:'#d29922',marginBottom:8}}>
+                  <div style={{background:'var(--amber-a)',border:'1px solid var(--amber)',borderRadius:6,padding:'8px 10px',fontSize:11,color:'var(--amber)',marginBottom:8}}>
                     ⚠ Permission denied. Please disconnect and reconnect your eBay account (we added new permissions since your last connection).
                   </div>
                 )}
                 {ebayPolicies?.hint==='error'&&(
-                  <div style={{background:'#2d1c00',border:'1px solid #9e6a03',borderRadius:6,padding:'8px 10px',fontSize:11,color:'#d29922',marginBottom:8}}>
+                  <div style={{background:'var(--amber-a)',border:'1px solid var(--amber)',borderRadius:6,padding:'8px 10px',fontSize:11,color:'var(--amber)',marginBottom:8}}>
                     ⚠ Error fetching policies: {ebayPolicies.detail}
                   </div>
                 )}
@@ -1448,9 +1448,9 @@ export default function App(){
                       {label:'Return policy',                 cfgKey:'returnPolicyId',      idKey:'returnPolicyId',      items:ebayPolicies.returns||[]},
                     ].map(({label,cfgKey,idKey,items})=>(
                       <div key={cfgKey} style={{display:'flex',flexDirection:'column',gap:3}}>
-                        <label style={{fontSize:10,color:'#8b949e'}}>{label}</label>
+                        <label style={{fontSize:10,color:'var(--text-2)'}}>{label}</label>
                         {items.length===0
-                           ? <div style={{fontSize:11,color:'#6e7681'}}>None found — follow the steps above to create one on eBay first.</div>
+                           ? <div style={{fontSize:11,color:'var(--text-3)'}}>None found — follow the steps above to create one on eBay first.</div>
                           : <select style={{...S.fInp,fontSize:11}} value={cfg[cfgKey]||''} onChange={e=>setCfg(p=>({...p,[cfgKey]:e.target.value}))}>
                               <option value="">Select…</option>
                               {items.map(p=><option key={p[idKey]||p.name} value={p[idKey]||''}>{p.name}</option>)}
@@ -1461,12 +1461,12 @@ export default function App(){
 
                     {/* Inventory location */}
                     <div style={{display:'flex',alignItems:'center',gap:8,marginTop:4,flexWrap:'wrap'}}>
-                      <span style={{fontSize:11,color:'#8b949e'}}>Inventory location:</span>
+                      <span style={{fontSize:11,color:'var(--text-2)'}}>Inventory location:</span>
                       {ebayLocation===null
-                        ? <span style={{fontSize:11,color:'#8b949e'}}>Not checked</span>
+                        ? <span style={{fontSize:11,color:'var(--text-2)'}}>Not checked</span>
                         : ebayLocation
-                          ? <span style={{fontSize:11,color:'#3fb950'}}>✓ Set up</span>
-                          : <button style={{...S.mBtn,fontSize:11,padding:'3px 8px',color:'#f0883e',borderColor:'#f0883e'}} onClick={createEbayLocation}>
+                          ? <span style={{fontSize:11,color:'var(--green)'}}>✓ Set up</span>
+                          : <button style={{...S.mBtn,fontSize:11,padding:'3px 8px',color:'var(--accent)',borderColor:'var(--accent)'}} onClick={createEbayLocation}>
                               + Create location (uses your postal code from Settings)
                             </button>
                       }
@@ -1474,27 +1474,27 @@ export default function App(){
 
                     {/* Overall readiness */}
                     {(cfg.fulfillmentPolicyId&&cfg.paymentPolicyId&&cfg.returnPolicyId&&ebayLocation)
-                      ? <div style={{fontSize:11,color:'#3fb950',marginTop:4}}>✓ Ready to publish listings</div>
-                      : <div style={{fontSize:11,color:'#d29922',marginTop:4}}>
+                      ? <div style={{fontSize:11,color:'var(--green)',marginTop:4}}>✓ Ready to publish listings</div>
+                      : <div style={{fontSize:11,color:'var(--amber)',marginTop:4}}>
                           Select all three policies and create a location to enable listing
                         </div>
                     }
                   </div>
                 )}
                 {!ebayPolicies&&(
-                  <div style={{fontSize:11,color:'#6e7681'}}>
+                  <div style={{fontSize:11,color:'var(--text-3)'}}>
                     Follow the steps above to create your policies on eBay, then click ↻ Refresh policies.
                   </div>
                 )}
               </div>
             )}
-            <div style={{background:'#21262d',borderRadius:8,padding:'12px 14px'}}>
-              <div style={{fontSize:11,color:'#8b949e',marginBottom:6}}>eBay account</div>
+            <div style={{background:'var(--surface-2)',borderRadius:8,padding:'12px 14px'}}>
+              <div style={{fontSize:11,color:'var(--text-2)',marginBottom:6}}>eBay account</div>
               {ebayStatus?.connected
                 ? <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                     <div>
-                      <div style={{fontSize:13,fontWeight:600,color:'#3fb950'}}>✓ Connected</div>
-                      {ebayStatus.ebayUsername&&<div style={{fontSize:11,color:'#8b949e',marginTop:2}}>{ebayStatus.ebayUsername}</div>}
+                      <div style={{fontSize:13,fontWeight:600,color:'var(--green)'}}>✓ Connected</div>
+                      {ebayStatus.ebayUsername&&<div style={{fontSize:11,color:'var(--text-2)',marginTop:2}}>{ebayStatus.ebayUsername}</div>}
                     </div>
                     <button style={{...S.mBtn,fontSize:12,padding:'5px 10px'}} onClick={async()=>{
                       const r=await fetch(`/api/ebay/auth?action=url&userId=${encodeURIComponent(userId)}`).then(x=>x.json());
@@ -1510,8 +1510,8 @@ export default function App(){
             <button style={{...S.mBtn,textAlign:'center',width:'100%',padding:'10px'}} onClick={handleOpenPortal}>
               🔗 Manage or cancel subscription
             </button>
-            <p style={{fontSize:11,color:'#6e7681',textAlign:'center'}}>Opens Lemon Squeezy — sign in with your email to manage your plan</p>
-            <button style={{...S.mBtn,textAlign:'center',width:'100%',padding:'10px',color:'#f85149',borderColor:'#f85149'}}
+            <p style={{fontSize:11,color:'var(--text-3)',textAlign:'center'}}>Opens Lemon Squeezy — sign in with your email to manage your plan</p>
+            <button style={{...S.mBtn,textAlign:'center',width:'100%',padding:'10px',color:'var(--red)',borderColor:'var(--red)'}}
               onClick={()=>{ setShowAccount(false); signOut(); }}>
               Sign out
             </button>
