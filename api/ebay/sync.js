@@ -50,6 +50,16 @@ async function fetchActiveListings(token) {
     const body = b[1];
     const get  = tag => extractFirst(body, tag);
     const itemId = get('ItemID');
+
+    // Pull the actual shipping service + cost configured on this listing directly,
+    // rather than relying only on a Business Policy ID (which is blank for listings
+    // that use ad-hoc/classic shipping service config instead of a named policy).
+    const svcMatch = body.match(/<ShippingServiceOptions>([\s\S]*?)<\/ShippingServiceOptions>/);
+    const svcBody  = svcMatch ? svcMatch[1] : '';
+    const shippingServiceName = svcBody ? extractFirst(svcBody, 'ShippingService') : '';
+    const shippingServiceCostRaw = svcBody ? extractFirst(svcBody, 'ShippingServiceCost') : '';
+    const shippingServiceCost = shippingServiceCostRaw !== '' ? parseFloat(shippingServiceCostRaw) : null;
+
     return {
       ebayItemId:        itemId,
       ebaySku:           get('SKU'),
@@ -59,6 +69,8 @@ async function fetchActiveListings(token) {
       listingUrl:        get('ViewItemURL') || (itemId ? 'https://www.ebay.co.uk/itm/'+itemId : ''),
       fulfillmentPolicyId: get('ShippingProfileID') || '', // same ID space as the Account API's fulfillment policies
       startTime:         get('StartTime') || '', // original listing date — used for the free-listings-per-month tracker
+      shippingServiceName,                        // e.g. "RoyalMail2ndClassStandard" — used when there's no Business Policy
+      shippingServiceCost,                        // buyer-facing cost set on the listing; null if calculated/not flat-rate
     };
   }).filter(it => it.ebayItemId);
 
