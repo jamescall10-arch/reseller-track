@@ -472,11 +472,13 @@ export default function App(){
       const parts = [];
       if(synced>0)   parts.push(synced+' sale'+(synced!==1?'s':'')+' synced');
       if(imported>0) parts.push(imported+' active listing'+(imported!==1?'s':'')+' imported');
-      setEbaySyncState({loading:false,msg:parts.length?'✓ '+parts.join(', '):'No new sales or listings found on eBay'});
+      let msg = parts.length ? '✓ '+parts.join(', ') : 'No new sales or listings found on eBay';
+      if(data.activeListingsError) msg += (parts.length?' — ':'') + '⚠ Active listings: '+data.activeListingsError;
+      setEbaySyncState({loading:false,msg});
     } catch(e) {
       setEbaySyncState({loading:false,msg:'✗ '+e.message});
     }
-    setTimeout(()=>setEbaySyncState(s=>({...s,msg:''})),6000);
+    setTimeout(()=>setEbaySyncState(s=>({...s,msg:''})), data.activeListingsError ? 15000 : 6000);
   };
 
   // ── Fetch subscription status ──────────────────────────────────────────────
