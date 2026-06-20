@@ -8,18 +8,19 @@
 // create/update flows. We only read here, never write, so this is safe.
 import { getUserToken, EBAY_API, ebayHeaders } from './_token.js';
 
-const extractAll   = (xml, tag) => [...xml.matchAll(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'g'))].map(m => m[1].trim());
-const extractFirst = (xml, tag) => extractAll(xml, tag)[0] || '';
+const extractFirst = (xml, tag) => {
+  // Tag may carry attributes, e.g. <CurrentPrice currencyID="GBP">12.34</CurrentPrice>
+  const m = xml.match(new RegExp('<'+tag+'[^>]*>([^<]*)<\\/'+tag+'>'));
+  return m ? m[1].trim() : '';
+};
 
 async function fetchActiveListings(token) {
-  const xml = `<?xml version="1.0" encoding="utf-8"?>
-<GetMyeBaySellingRequest xmlns="urn:ebay:apis:eBLBaseComponents">
-  <ActiveList>
-    <Sort>TimeLeft</Sort>
-    <Pagination><EntriesPerPage>200</EntriesPerPage><PageNumber>1</PageNumber></Pagination>
-  </ActiveList>
-  <DetailLevel>ReturnAll</DetailLevel>
-</GetMyeBaySellingRequest>`;
+  const xml = '<?xml version="1.0" encoding="utf-8"?>'
+    + '<GetMyeBaySellingRequest xmlns="urn:ebay:apis:eBLBaseComponents">'
+    + '<ActiveList><Include>true</Include><Sort>TimeLeft</Sort>'
+    + '<Pagination><EntriesPerPage>200</EntriesPerPage><PageNumber>1</PageNumber></Pagination>'
+    + '</ActiveList><DetailLevel>ReturnAll</DetailLevel>'
+    + '</GetMyeBaySellingRequest>';
 
   const r = await fetch('https://api.ebay.com/ws/api.dll', {
     method: 'POST',
@@ -34,24 +35,35 @@ async function fetchActiveListings(token) {
   });
   const text = await r.text();
   const ack  = extractFirst(text, 'Ack');
+
   if (ack !== 'Success' && ack !== 'Warning') {
-    const msg = extractFirst(text, 'ShortMessage') || 'GetMyeBaySelling failed';
-    throw new Error(msg);
+    const shortMsg = extractFirst(text, 'ShortMessage');
+    const longMsg  = extractFirst(text, 'LongMessage');
+    const errCode  = extractFirst(text, 'ErrorCode');
+    throw new Error(
+      'GetMyeBaySelling ' + (ack||'failed') + (errCode?' (code '+errCode+')':'') + ': ' + (shortMsg||longMsg||text.slice(0,200))
+    );
   }
 
   const blocks = [...text.matchAll(/<Item>([\s\S]*?)<\/Item>/g)];
-  return blocks.map(b => {
+  const items = blocks.map(b => {
     const body = b[1];
-    const get  = tag => (body.match(new RegExp(`<${tag}>([^<]*)<\/${tag}>`)) || [])[1]?.trim() || '';
+    const get  = tag => extractFirst(body, tag);
+    const itemId = get('ItemID');
     return {
-      ebayItemId: get('ItemID'),
+      ebayItemId: itemId,
       ebaySku:    get('SKU'),
       title:      get('Title'),
-      price:      parseFloat(get('CurrentPrice') || get('StartPrice') || '0'),
-      qty:        parseInt(get('QuantityAvailable') || get('Quantity') || '1', 10),
-      listingUrl: get('ViewItemURL') || (get('ItemID') ? `https://www.ebay.co.uk/itm/${get('ItemID')}` : ''),
+      price:      parseFloat(get('CurrentPrice') || get('ConvertedCurrentPrice') || get('StartPrice') || '0') || 0,
+      qty:        parseInt(get('QuantityAvailable') || get('Quantity') || '1', 10) || 1,
+      listingUrl: get('ViewItemURL') || (itemId ? 'https://www.ebay.co.uk/itm/'+itemId : ''),
     };
   }).filter(it => it.ebayItemId);
+
+  const totalEntries = parseInt(extractFirst(text, 'TotalNumberOfEntries') || '0', 10);
+  console.log('[sync] GetMyeBaySelling: ack='+ack+', items parsed='+items.length+', eBay reports total='+totalEntries);
+
+  return items;
 }
 
 export default async function handler(req, res) {
@@ -92,15 +104,19 @@ export default async function handler(req, res) {
       });
     });
 
-    // ── Active listings — best-effort; sync still returns orders if this fails ──
+    // ── Active listings — non-fatal if it fails, but error is surfaced to the UI ──
     let activeListings = [];
-    try { activeListings = await fetchActiveListings(token); }
-    catch (e) { console.error('[sync] active listings fetch failed:', e.message); }
+    let activeListingsError = null;
+    try {
+      activeListings = await fetchActiveListings(token);
+    } catch (e) {
+      console.error('[sync] active listings fetch failed:', e.message);
+      activeListingsError = e.message;
+    }
 
-    return res.status(200).json({ orders: results, activeListings });
+    return res.status(200).json({ orders: results, activeListings, activeListingsError });
   } catch(e) {
     console.error('[sync]',e.message);
     return res.status(500).json({ error: e.message });
   }
 }
-
