@@ -386,9 +386,6 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
             {netTrackerSeries.length>1&&<div style={{fontSize:11,color:netDelta>=0?'#3fb950':'#f85149',marginTop:4}}>{netDelta>=0?'+':''}{fmt(netDelta,sym)} over period</div>}
           </div>
         </div>
-        <div style={{display:'flex',flexWrap:'wrap',gap:6,marginBottom:14}}>
-          {NET_TRACK_RANGES.map(r=>(<button key={r.id} type="button" style={rangeBtn(netRange===r.id)} onClick={()=>setNetRange(r.id)}>{r.label}</button>))}
-        </div>
         <NetTrackerFull/>
       </div>
 
