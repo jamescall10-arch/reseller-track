@@ -75,7 +75,7 @@ export default async function handler(req, res) {
 
     // ── Orders (sold items) — Fulfillment REST API ─────────────────────────
     const from  = new Date(Date.now()-90*24*60*60*1000).toISOString();
-    const r     = await fetch(EBAY_API+'/sell/fulfillment/v1/order?limit=50&filter=creationdate:['+from+'...]', {headers:ebayHeaders(token)});
+    const r     = await fetch(EBAY_API+'/sell/fulfillment/v1/order?limit=50&filter=creationdate:['+from+'..]', {headers:ebayHeaders(token)});
     if (!r.ok) { const e=await r.json().catch(()=>({})); throw new Error('Fulfillment API: '+r.status+' — '+((e.errors||[]).map(x=>x.message).join(', ')||r.statusText)); }
     const data   = await r.json();
     const results = [];
