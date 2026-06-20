@@ -104,7 +104,7 @@ export default async function handler(req, res) {
     allOrders.forEach(order => {
       const orderTotal    = parseFloat(order.pricingSummary?.total?.value||0);
       const totalFees     = parseFloat(order.totalMarketplaceFee?.value||0);
-      const totalToSeller = parseFloat(order.paymentSummary?.totalDueToSeller?.value||0);
+      const totalToSeller = parseFloat(order.paymentSummary?.totalDueSeller?.value||0);
       const buyerShipping = parseFloat(order.pricingSummary?.deliveryCost?.value||0);
       (order.lineItems||[]).forEach(line => {
         const lineTotal  = parseFloat(line.total?.value||line.lineItemCost?.value||0);
