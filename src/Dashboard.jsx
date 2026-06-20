@@ -12,24 +12,24 @@ const fmt = (n,sym='£') => (n<0?'-':'')+sym+Math.abs(n).toFixed(2);
 const iq = it => Math.max(1,Math.floor(Number(it?.qty))||1);
 const activeSales = sales => (sales||[]).filter(s=>!s.refunded);
 
-const COLORS = ['#58a6ff','#3fb950','#f0883e','#d29922','#f85149','#a371f7','#79c0ff'];
-const card = { background:'#161b22', border:'1px solid #30363d', borderRadius:8, padding:'14px 16px', marginBottom:14 };
-const tipStyle = { background:'#21262d', border:'1px solid #30363d', borderRadius:6, fontSize:12 };
-const axisStyle = { fill:'#8b949e', fontSize:11 };
-const gridStroke = '#21262d';
+const COLORS = ['#f97316','#22c55e','#3b82f6','#eab308','#ef4444','#a855f7','#06b6d4'];
+const card = { background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:'18px 20px', marginBottom:18 };
+const tipStyle = { background:'var(--surface-2)', border:'1px solid var(--border)', borderRadius:6, fontSize:12, color:'var(--text-1)' };
+const axisStyle = { fill:'var(--text-2)', fontSize:11 };
+const gridStroke = 'var(--border-sub)';
 
 const rangeBtn = active => ({
-  padding:'6px 12px', border:`1px solid ${active?'#1f6feb':'#30363d'}`,
+  padding:'6px 12px', border:`1px solid ${active?'#1f6feb':'var(--border)'}`,
   borderRadius:6, background:active?'#1f6feb':'transparent',
-  color:active?'#e6edf3':'#8b949e', cursor:'pointer', fontSize:12, fontWeight:active?600:400,
+  color:active?'var(--text-1)':'var(--text-2)', cursor:'pointer', fontSize:12, fontWeight:active?600:400,
 });
 
 function ExpandModal({ title, onClose, children }) {
   return (
-    <div style={{position:'fixed',inset:0,background:'#0d1117',zIndex:300,display:'flex',flexDirection:'column'}}>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',borderBottom:'1px solid #30363d',background:'#161b22',flexShrink:0}}>
-        <span style={{fontSize:15,fontWeight:600,color:'#e6edf3'}}>{title}</span>
-        <button onClick={onClose} style={{background:'transparent',border:'1px solid #30363d',color:'#e6edf3',borderRadius:6,padding:'5px 12px',cursor:'pointer',fontSize:13}}>✕ Close</button>
+    <div style={{position:'fixed',inset:0,background:'var(--bg)',zIndex:300,display:'flex',flexDirection:'column'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',borderBottom:'1px solid var(--border)',background:'var(--surface)',flexShrink:0}}>
+        <span style={{fontSize:15,fontWeight:600,color:'var(--text-1)'}}>{title}</span>
+        <button onClick={onClose} style={{background:'transparent',border:'1px solid #30363d',color:'var(--text-1)',borderRadius:6,padding:'5px 12px',cursor:'pointer',fontSize:13}}>✕ Close</button>
       </div>
       <div style={{flex:1,overflowY:'auto',padding:16}}>{children}</div>
     </div>
@@ -40,20 +40,20 @@ function SparkCard({ title, value, valueColor, series, dataKey, color, onExpand 
   return (
     <div style={{...card, cursor:'pointer', marginBottom:0}} onClick={onExpand}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6}}>
-        <div style={{fontSize:12,fontWeight:600,color:'#8b949e'}}>{title}</div>
+        <div style={{fontSize:12,fontWeight:600,color:'var(--text-2)'}}>{title}</div>
         <div style={{fontSize:11,color:'#58a6ff'}}>View →</div>
       </div>
-      <div style={{fontSize:20,fontWeight:700,color:valueColor||'#e6edf3',marginBottom:6,lineHeight:1.2}}>{value}</div>
+      <div style={{fontSize:20,fontWeight:700,color:valueColor||'var(--text-1)',marginBottom:6,lineHeight:1.2}}>{value}</div>
       {series&&series.length>0&&(
         <ResponsiveContainer width="100%" height={44}>
           <AreaChart data={series} margin={{top:2,right:0,left:0,bottom:0}}>
             <defs>
               <linearGradient id={`sk_${title.replace(/\s/g,'')}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={color||'#58a6ff'} stopOpacity={0.35}/>
-                <stop offset="100%" stopColor={color||'#58a6ff'} stopOpacity={0.02}/>
+                <stop offset="0%" stopColor={color||'#f97316'} stopOpacity={0.35}/>
+                <stop offset="100%" stopColor={color||'#f97316'} stopOpacity={0.02}/>
               </linearGradient>
             </defs>
-            <Area type="monotone" dataKey={dataKey} stroke={color||'#58a6ff'} fill={`url(#sk_${title.replace(/\s/g,'')})`} strokeWidth={1.5} dot={false}/>
+            <Area type="monotone" dataKey={dataKey} stroke={color||'#f97316'} fill={`url(#sk_${title.replace(/\s/g,'')})`} strokeWidth={1.5} dot={false}/>
           </AreaChart>
         </ResponsiveContainer>
       )}
@@ -143,11 +143,11 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
   },[logged]);
 
   const Empty = ({children,h=180})=>(
-    <div style={{height:h,display:'flex',alignItems:'center',justifyContent:'center',color:'#6e7681',fontSize:12,textAlign:'center'}}>{children}</div>
+    <div style={{height:h,display:'flex',alignItems:'center',justifyContent:'center',color:'var(--text-3)',fontSize:12,textAlign:'center'}}>{children}</div>
   );
 
   const kpis = [
-    { label:'Listed value',        value:fmt(listValue,sym),    color:'#f0883e',  sub:'Stock + active listings' },
+    { label:'Listed value',        value:fmt(listValue,sym),    color:'#f97316',  sub:'Stock + active listings' },
     { label:'This month profit',   value:fmt(thisMonth.profit,sym), color:thisMonth.profit>=0?'#3fb950':'#f85149', sub:`${thisMonth.sales} items sold` },
     { label:'All-time sale profit',value:fmt(stats.profit,sym), color:'#3fb950',  sub:`avg ${fmt(avgProfit,sym)}/item` },
     { label:'After all costs',     value:fmt(trueNet,sym),      color:trueNet>=0?'#3fb950':'#f85149', sub:'Profit minus logged spend' },
@@ -189,9 +189,9 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
             <XAxis dataKey="month" tick={axisStyle} tickLine={false}/>
             <YAxis tick={axisStyle} tickLine={false} axisLine={false} tickFormatter={v=>sym+v} width={50}/>
             <Tooltip contentStyle={tipStyle} formatter={v=>[fmt(v,sym)]}/>
-            <Legend wrapperStyle={{fontSize:11,color:'#8b949e'}}/>
-            <Bar dataKey="revenue" name="Revenue" fill="#58a6ff" radius={[3,3,0,0]}/>
-            <Bar dataKey="profit" name="Profit" fill="#3fb950" radius={[3,3,0,0]}/>
+            <Legend wrapperStyle={{fontSize:11,color:'var(--text-2)'}}/>
+            <Bar dataKey="revenue" name="Revenue" fill="var(--accent)" radius={[6,6,0,0]} maxBarSize={48}/>
+            <Bar dataKey="profit" name="Profit" fill="var(--green)" radius={[6,6,0,0]} maxBarSize={48}/>
           </BarChart>
         </ResponsiveContainer>
   );
@@ -206,7 +206,7 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
                 {expensePie.map((e,i)=><Cell key={e.name} fill={e.color||COLORS[i%COLORS.length]}/>)}
               </Pie>
               <Tooltip contentStyle={tipStyle} formatter={v=>[fmt(v,sym)]}/>
-              {isMobile&&<Legend wrapperStyle={{fontSize:12,color:'#8b949e'}}/>}
+              {isMobile&&<Legend wrapperStyle={{fontSize:12,color:'var(--text-2)'}}/>}
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -222,7 +222,7 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
                 {categoryPie.map((_,i)=><Cell key={i} fill={COLORS[i%COLORS.length]}/>)}
               </Pie>
               <Tooltip contentStyle={tipStyle} formatter={v=>[fmt(v,sym)]}/>
-              {isMobile&&<Legend wrapperStyle={{fontSize:12,color:'#8b949e'}}/>}
+              {isMobile&&<Legend wrapperStyle={{fontSize:12,color:'var(--text-2)'}}/>}
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -231,12 +231,12 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
   const DailySalesFull = () => (
     <ResponsiveContainer width="100%" height={isMobile?200:220}>
       <AreaChart data={dailySales} margin={{top:4,right:8,left:0,bottom:0}}>
-        <defs><linearGradient id="dsFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#58a6ff" stopOpacity={0.3}/><stop offset="100%" stopColor="#58a6ff" stopOpacity={0.02}/></linearGradient></defs>
+        <defs><linearGradient id="dsFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#f97316" stopOpacity={0.35}/><stop offset="100%" stopColor="#f97316" stopOpacity={0.02}/></linearGradient></defs>
         <CartesianGrid strokeDasharray="3 3" stroke={gridStroke}/>
         <XAxis dataKey="day" tick={axisStyle} tickLine={false} interval="preserveStartEnd"/>
         <YAxis tick={axisStyle} tickLine={false} axisLine={false} tickFormatter={v=>sym+v} width={50}/>
         <Tooltip contentStyle={tipStyle} formatter={v=>[fmt(v,sym),'Revenue']}/>
-        <Area type="monotone" dataKey="amount" stroke="#58a6ff" fill="url(#dsFill)" strokeWidth={2} dot={false}/>
+        <Area type="monotone" dataKey="amount" stroke="#f97316" fill="url(#dsFill)" strokeWidth={2.5} dot={false}/>
       </AreaChart>
     </ResponsiveContainer>
   );
@@ -275,7 +275,7 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
             <XAxis type="number" tick={axisStyle} tickFormatter={v=>`${v}%`} domain={[0,'auto']}/>
             <YAxis type="category" dataKey="tier" tick={axisStyle} width={70}/>
             <Tooltip contentStyle={tipStyle} formatter={(v,name,props)=>[`${v}% (${props.payload.sales} sale${props.payload.sales!==1?'s':''})`, 'Avg fee']}/>
-            <Bar dataKey="avgFeePct" name="Avg fee %" fill="#f85149" radius={[0,3,3,0]}/>
+            <Bar dataKey="avgFeePct" name="Avg fee %" fill="var(--accent)" radius={[0,6,6,0]} maxBarSize={28}/>
           </BarChart>
         </ResponsiveContainer>
   );
@@ -287,10 +287,10 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
 
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
         {kpis.map(k=>(
-          <div key={k.label} style={{background:'#161b22',border:'1px solid #30363d',borderRadius:8,padding:'10px 12px'}}>
-            <div style={{fontSize:10,color:'#8b949e',marginBottom:3,lineHeight:1.3}}>{k.label}</div>
+          <div key={k.label} style={{background:'var(--surface)',border:'1px solid #30363d',borderRadius:8,padding:'10px 12px'}}>
+            <div style={{fontSize:10,color:'var(--text-2)',marginBottom:3,lineHeight:1.3}}>{k.label}</div>
             <div style={{fontSize:18,fontWeight:700,color:k.color,lineHeight:1.2}}>{k.value}</div>
-            <div style={{fontSize:10,color:'#6e7681',marginTop:3}}>{k.sub}</div>
+            <div style={{fontSize:10,color:'var(--text-3)',marginTop:3}}>{k.sub}</div>
           </div>
         ))}
       </div>
@@ -305,7 +305,7 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
           <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}><div style={{fontSize:12,fontWeight:600}}>Fee tiers</div><div style={{fontSize:11,color:'#58a6ff'}}>View →</div></div>
           {feeTierData.map(t=>(
             <div key={t.tier} style={{display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:3}}>
-              <span style={{color:'#8b949e'}}>{t.tier}</span>
+              <span style={{color:'var(--text-2)'}}>{t.tier}</span>
               <span style={{color:'#f85149',fontWeight:600}}>{t.avgFeePct}%</span>
             </div>
           ))}
@@ -315,11 +315,11 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
         <div style={{...card,marginBottom:0,cursor:'pointer'}} onClick={()=>setExpanded({title:'Expense breakdown',component:<ExpensePieFull/>})}>
           <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}><div style={{fontSize:12,fontWeight:600}}>Expenses</div><div style={{fontSize:11,color:'#58a6ff'}}>View →</div></div>
-          {expensePie.length===0?<div style={{fontSize:11,color:'#6e7681'}}>None logged yet</div>:expensePie.map((e,i)=>(<div key={e.name} style={{display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:3}}><span style={{color:'#8b949e'}}>{e.name}</span><span style={{color:e.color,fontWeight:600}}>{fmt(e.value,sym)}</span></div>))}
+          {expensePie.length===0?<div style={{fontSize:11,color:'var(--text-3)'}}>None logged yet</div>:expensePie.map((e,i)=>(<div key={e.name} style={{display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:3}}><span style={{color:'var(--text-2)'}}>{e.name}</span><span style={{color:e.color,fontWeight:600}}>{fmt(e.value,sym)}</span></div>))}
         </div>
         <div style={{...card,marginBottom:0,cursor:'pointer'}} onClick={()=>setExpanded({title:'Inventory by category',component:<CategoryPieFull/>})}>
           <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}><div style={{fontSize:12,fontWeight:600}}>Inventory</div><div style={{fontSize:11,color:'#58a6ff'}}>View →</div></div>
-          {categoryPie.length===0?<div style={{fontSize:11,color:'#6e7681'}}>No items yet</div>:categoryPie.slice(0,4).map((e,i)=>(<div key={e.name} style={{display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:3}}><span style={{color:'#8b949e'}}>{e.name}</span><span style={{color:COLORS[i%COLORS.length],fontWeight:600}}>{fmt(e.value,sym)}</span></div>))}
+          {categoryPie.length===0?<div style={{fontSize:11,color:'var(--text-3)'}}>No items yet</div>:categoryPie.slice(0,4).map((e,i)=>(<div key={e.name} style={{display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:3}}><span style={{color:'var(--text-2)'}}>{e.name}</span><span style={{color:COLORS[i%COLORS.length],fontWeight:600}}>{fmt(e.value,sym)}</span></div>))}
         </div>
       </div>
 
@@ -327,9 +327,9 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
         <div style={{...card,marginBottom:12}}>
           <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>Bundle postage savings</div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8}}>
-            {[['Bundles',bundleStats.bundleCount,'#58a6ff'],['Items in bundles',bundleStats.itemsInBundles,'#e6edf3'],['Total saved',fmt(bundleStats.totalSavings,sym),'#3fb950'],['Avg per bundle',fmt(bundleStats.avgSavings,sym),'#3fb950']].map(([l,v,c])=>(
-              <div key={l} style={{background:'#21262d',borderRadius:6,padding:'8px 10px'}}>
-                <div style={{fontSize:10,color:'#8b949e',marginBottom:2}}>{l}</div>
+            {[['Bundles',bundleStats.bundleCount,'#58a6ff'],['Items in bundles',bundleStats.itemsInBundles,'var(--text-1)'],['Total saved',fmt(bundleStats.totalSavings,sym),'#3fb950'],['Avg per bundle',fmt(bundleStats.avgSavings,sym),'#3fb950']].map(([l,v,c])=>(
+              <div key={l} style={{background:'var(--surface-2)',borderRadius:6,padding:'8px 10px'}}>
+                <div style={{fontSize:10,color:'var(--text-2)',marginBottom:2}}>{l}</div>
                 <div style={{fontSize:16,fontWeight:700,color:c}}>{v}</div>
               </div>
             ))}
@@ -340,10 +340,10 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
       <div style={{...card,marginBottom:12}}>
         <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>Stock overview</div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
-          {[['In stock',stats.stockCount,'#8b949e'],['Listed',stats.listedCount,'#f0883e'],['Sold',stats.salesCount,'#e6edf3']].map(([l,v,c])=>(
-            <div key={l} style={{background:'#21262d',borderRadius:6,padding:'8px 10px',textAlign:'center'}}>
+          {[['In stock',stats.stockCount,'var(--text-2)'],['Listed',stats.listedCount,'#f0883e'],['Sold',stats.salesCount,'var(--text-1)']].map(([l,v,c])=>(
+            <div key={l} style={{background:'var(--surface-2)',borderRadius:6,padding:'8px 10px',textAlign:'center'}}>
               <div style={{fontSize:20,fontWeight:700,color:c}}>{v}</div>
-              <div style={{fontSize:10,color:'#6e7681',marginTop:2}}>{l}</div>
+              <div style={{fontSize:10,color:'var(--text-3)',marginTop:2}}>{l}</div>
             </div>
           ))}
         </div>
@@ -351,8 +351,8 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
 
       <div style={card}>
         <div style={{fontSize:12,fontWeight:600,marginBottom:6}}>Tax year gross</div>
-        <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#8b949e',marginBottom:5}}><span>Toward £1,000 allowance</span><span style={{color:taxYear.gross<1000?'#3fb950':'#f85149',fontWeight:600}}>{fmt(taxYear.gross,sym)}</span></div>
-        <div style={{background:'#21262d',borderRadius:4,height:6,overflow:'hidden'}}><div style={{width:`${taxYear.pct}%`,height:'100%',background:taxYear.gross<1000?'#3fb950':'#f85149',borderRadius:4}}/></div>
+        <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'var(--text-2)',marginBottom:5}}><span>Toward £1,000 allowance</span><span style={{color:taxYear.gross<1000?'#3fb950':'#f85149',fontWeight:600}}>{fmt(taxYear.gross,sym)}</span></div>
+        <div style={{background:'var(--surface-2)',borderRadius:4,height:6,overflow:'hidden'}}><div style={{width:`${taxYear.pct}%`,height:'100%',background:taxYear.gross<1000?'#3fb950':'#f85149',borderRadius:4}}/></div>
       </div>
     </div>
   );
@@ -360,15 +360,15 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
   // ── DESKTOP LAYOUT ─────────────────────────────────────────────
   return(
     <div>
-      <p style={{fontSize:12,color:'#8b949e',margin:'0 0 12px'}}>Welcome to your reseller dashboard</p>
+      <p style={{fontSize:12,color:'var(--text-2)',margin:'0 0 12px'}}>Welcome to your reseller dashboard</p>
 
       {/* KPIs */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:14}}>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:20}}>
         {kpis.map(k=>(
-          <div key={k.label} style={{background:'#161b22',border:'1px solid #30363d',borderRadius:8,padding:'14px 16px'}}>
-            <div style={{fontSize:11,color:'#8b949e',marginBottom:4}}>{k.label}</div>
-            <div style={{fontSize:22,fontWeight:700,color:k.color,lineHeight:1.2}}>{k.value}</div>
-            <div style={{fontSize:10,color:'#6e7681',marginTop:4}}>{k.sub}</div>
+          <div key={k.label} className="rt-stat-card" style={{padding:'16px 18px'}}>
+            <div style={{fontSize:11,color:'var(--text-2)',marginBottom:6,fontWeight:600}}>{k.label}</div>
+            <div style={{fontSize:24,fontWeight:700,color:k.color,lineHeight:1.2}}>{k.value}</div>
+            <div style={{fontSize:10,color:'var(--text-3)',marginTop:5}}>{k.sub}</div>
           </div>
         ))}
       </div>
@@ -378,10 +378,10 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
         <div style={{display:'flex',flexWrap:'wrap',alignItems:'flex-start',justifyContent:'space-between',gap:12,marginBottom:12}}>
           <div>
             <div style={{fontSize:15,fontWeight:600,marginBottom:4}}>After all costs</div>
-            <div style={{fontSize:11,color:'#8b949e',maxWidth:420,lineHeight:1.5}}>Cumulative net from logged profits minus business spend — {activeRange.label.toLowerCase()}</div>
+            <div style={{fontSize:11,color:'var(--text-2)',maxWidth:420,lineHeight:1.5}}>Cumulative net from logged profits minus business spend — {activeRange.label.toLowerCase()}</div>
           </div>
           <div style={{textAlign:'right'}}>
-            <div style={{fontSize:11,color:'#8b949e'}}>Current position</div>
+            <div style={{fontSize:11,color:'var(--text-2)'}}>Current position</div>
             <div style={{fontSize:28,fontWeight:700,color:netEnd>=0?'#3fb950':'#f85149',lineHeight:1.1}}>{fmt(netEnd,sym)}</div>
             {netTrackerSeries.length>1&&<div style={{fontSize:11,color:netDelta>=0?'#3fb950':'#f85149',marginTop:4}}>{netDelta>=0?'+':''}{fmt(netDelta,sym)} over period</div>}
           </div>
@@ -393,37 +393,37 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
       </div>
 
       {/* Monthly P&L + Expense pie */}
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:18,marginBottom:18}}>
         <div style={card}><div style={{fontSize:13,fontWeight:600,marginBottom:12}}>Monthly revenue vs profit</div><PLFull/></div>
         <div style={card}><div style={{fontSize:13,fontWeight:600,marginBottom:12}}>Expense breakdown</div><ExpensePieFull/></div>
       </div>
 
       {/* Category pie + Bundle stats */}
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:18,marginBottom:18}}>
         <div style={card}><div style={{fontSize:13,fontWeight:600,marginBottom:12}}>Inventory value by category</div><CategoryPieFull/></div>
         <div style={card}>
           <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>Bundle postage savings</div>
-          <div style={{fontSize:11,color:'#8b949e',marginBottom:12}}>Postage saved vs selling each item separately</div>
+          <div style={{fontSize:11,color:'var(--text-2)',marginBottom:12}}>Postage saved vs selling each item separately</div>
           {bundleStats.bundleCount===0
-            ? <div style={{fontSize:12,color:'#6e7681',padding:'8px 0'}}>No bundle sales yet. On Active Listings tick 2+ items and use "Bundle sale".</div>
+            ? <div style={{fontSize:12,color:'var(--text-3)',padding:'8px 0'}}>No bundle sales yet. On Active Listings tick 2+ items and use "Bundle sale".</div>
             : <>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8,marginBottom:14}}>
-                  {[['Bundle orders',bundleStats.bundleCount,'#58a6ff'],['Items in bundles',bundleStats.itemsInBundles,'#e6edf3'],['Total postage saved',fmt(bundleStats.totalSavings,sym),'#3fb950'],['Avg saved per bundle',fmt(bundleStats.avgSavings,sym),'#3fb950']].map(([l,v,c])=>(
-                    <div key={l} style={{background:'#21262d',borderRadius:6,padding:'10px 12px'}}>
-                      <div style={{fontSize:10,color:'#8b949e',marginBottom:2}}>{l}</div>
+                  {[['Bundle orders',bundleStats.bundleCount,'#58a6ff'],['Items in bundles',bundleStats.itemsInBundles,'var(--text-1)'],['Total postage saved',fmt(bundleStats.totalSavings,sym),'#3fb950'],['Avg saved per bundle',fmt(bundleStats.avgSavings,sym),'#3fb950']].map(([l,v,c])=>(
+                    <div key={l} style={{background:'var(--surface-2)',borderRadius:6,padding:'10px 12px'}}>
+                      <div style={{fontSize:10,color:'var(--text-2)',marginBottom:2}}>{l}</div>
                       <div style={{fontSize:18,fontWeight:700,color:c}}>{v}</div>
                     </div>
                   ))}
                 </div>
                 {bundleStats.recent.length>0&&(
                   <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
-                    <thead><tr style={{color:'#6e7681',textAlign:'left'}}>
+                    <thead><tr style={{color:'var(--text-3)',textAlign:'left'}}>
                       {['Date','Items','Revenue','Postage','Saved','Profit'].map(h=><th key={h} style={{padding:'4px 6px 4px 0',fontWeight:500}}>{h}</th>)}
                     </tr></thead>
                     <tbody>
                       {bundleStats.recent.map(b=>(
                         <tr key={b.id} style={{borderTop:'1px solid #21262d'}}>
-                          <td style={{padding:'5px 6px 5px 0',color:'#8b949e'}}>{b.date}</td>
+                          <td style={{padding:'5px 6px 5px 0',color:'var(--text-2)'}}>{b.date}</td>
                           <td style={{padding:'5px 6px'}}>{b.itemCount}</td>
                           <td style={{padding:'5px 6px',textAlign:'right'}}>{fmt(b.revenue,sym)}</td>
                           <td style={{padding:'5px 6px',textAlign:'right',color:'#f85149'}}>{fmt(b.postageTotal,sym)}</td>
@@ -440,18 +440,18 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
       </div>
 
       {/* Fee tier + Stock vs listed */}
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:18,marginBottom:18}}>
         <div style={card}>
           <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>Average eBay fees by sale price</div>
-          <div style={{fontSize:11,color:'#8b949e',marginBottom:12}}>Mean fee % per price band from your sales</div>
+          <div style={{fontSize:11,color:'var(--text-2)',marginBottom:12}}>Mean fee % per price band from your sales</div>
           <FeeTierFull/>
         </div>
         <div style={card}>
           <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>Stock vs listed</div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8}}>
-            {[['In stock',stats.stockCount,'#8b949e'],['Listed',stats.listedCount,'#f0883e'],['Sold (all time)',stats.salesCount,'#e6edf3'],['This month revenue',fmt(thisMonth.revenue,sym),'#58a6ff']].map(([l,v,c])=>(
-              <div key={l} style={{background:'#21262d',borderRadius:6,padding:'10px'}}>
-                <div style={{color:'#8b949e',fontSize:10,marginBottom:3}}>{l}</div>
+            {[['In stock',stats.stockCount,'var(--text-2)'],['Listed',stats.listedCount,'#f0883e'],['Sold (all time)',stats.salesCount,'var(--text-1)'],['This month revenue',fmt(thisMonth.revenue,sym),'#58a6ff']].map(([l,v,c])=>(
+              <div key={l} style={{background:'var(--surface-2)',borderRadius:6,padding:'10px'}}>
+                <div style={{color:'var(--text-2)',fontSize:10,marginBottom:3}}>{l}</div>
                 <div style={{fontWeight:700,fontSize:18,color:c}}>{v}</div>
               </div>
             ))}
@@ -460,20 +460,20 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
       </div>
 
       {/* Daily charts — 3 columns */}
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:14,marginBottom:14}}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:18,marginBottom:18}}>
         <div style={card}>
           <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>Daily revenue</div>
-          <div style={{fontSize:11,color:'#8b949e',marginBottom:12}}>Gross eBay sale price — last 30 days</div>
+          <div style={{fontSize:11,color:'var(--text-2)',marginBottom:12}}>Gross eBay sale price — last 30 days</div>
           <DailySalesFull/>
         </div>
         <div style={card}>
           <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>Copies sold per day</div>
-          <div style={{fontSize:11,color:'#8b949e',marginBottom:12}}>Items sold — last 30 days</div>
+          <div style={{fontSize:11,color:'var(--text-2)',marginBottom:12}}>Items sold — last 30 days</div>
           <DailyVolumeFull/>
         </div>
         <div style={card}>
           <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>Daily listings</div>
-          <div style={{fontSize:11,color:'#8b949e',marginBottom:12}}>Items moved to Active Listings — last 30 days</div>
+          <div style={{fontSize:11,color:'var(--text-2)',marginBottom:12}}>Items moved to Active Listings — last 30 days</div>
           <DailyListingsFull/>
         </div>
       </div>
@@ -481,14 +481,14 @@ export default function Dashboard({ stats, monthlyPL, expenses, sales, purchases
       {/* Tax year */}
       <div style={card}>
         <div style={{fontSize:13,fontWeight:600,marginBottom:8}}>UK tax year gross revenue</div>
-        <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#8b949e',marginBottom:6}}>
+        <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'var(--text-2)',marginBottom:6}}>
           <span>Gross toward £1,000 trading allowance</span>
           <span style={{color:taxYear.gross<1000?'#3fb950':taxYear.gross<5000?'#d29922':'#f85149',fontWeight:600}}>{fmt(taxYear.gross,sym)} / £1,000</span>
         </div>
-        <div style={{background:'#21262d',borderRadius:4,height:8,overflow:'hidden'}}>
+        <div style={{background:'var(--surface-2)',borderRadius:4,height:8,overflow:'hidden'}}>
           <div style={{width:`${taxYear.pct}%`,height:'100%',background:taxYear.gross<1000?'#3fb950':taxYear.gross<5000?'#d29922':'#f85149',borderRadius:4}}/>
         </div>
-        <div style={{fontSize:11,color:'#6e7681',marginTop:6}}>
+        <div style={{fontSize:11,color:'var(--text-3)',marginTop:6}}>
           {taxYear.gross<1000?'Under the £1,000 allowance — no tax action needed yet':'⚠ Over £1,000 — consider registering for Self Assessment'}
         </div>
       </div>
