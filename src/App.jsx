@@ -283,6 +283,7 @@ export default function App(){
   const [detailItem,setDetailItem]   = useState(null);
   const [bundleSell,setBundleSell]   = useState(null);
   const [bundleSearch,setBundleSearch] = useState('');
+  const [bundleTotalMoneyIn,setBundleTotalMoneyIn] = useState('');
   const [bundlePost,setBundlePost]   = useState('');
 
   // Settings
@@ -574,6 +575,7 @@ export default function App(){
             patch.sellerPostageCost = listing.shippingServiceCost;
           }
           if(listing.shippingServiceName && !existing.shippingServiceName) patch.shippingServiceName = listing.shippingServiceName;
+          if(existing.isGTC !== listing.isGTC) patch.isGTC = listing.isGTC;
           if(Object.keys(patch).length){ soldUpdates.set(existing.id, {...(soldUpdates.get(existing.id)||{}), ...patch}); backfilled++; }
           return;
         }
@@ -599,9 +601,30 @@ export default function App(){
           ebaySku:              listing.ebaySku,
           ebayListingUrl:       listing.listingUrl,
           fulfillmentPolicyId:  listing.fulfillmentPolicyId||'',
+          isGTC:                !!listing.isGTC,
           importedFromEbay:     true,
         });
         imported++;
+      });
+
+      // ── Recalculate postage on previously-synced sales whose item data has
+      // since improved (e.g. a postage policy or real shipping cost was just
+      // backfilled above). Without this, sales logged before that fix existed
+      // stay frozen at whatever postage was calculated at the time — this is
+      // what makes already-synced sales keep showing a stale flat default ──
+      let recalculated = 0;
+      const salesPostageUpdates = new Map(); // saleId -> {postage, profit}
+      sales.forEach(s => {
+        if(!s.fromEbaySync) return;
+        const baseItem = items.find(it=>it.id===s.itemId);
+        if(!baseItem) return;
+        const patch = soldUpdates.get(baseItem.id);
+        const effectiveItem = patch ? {...baseItem, ...patch} : baseItem;
+        const newPostage = resolvePostageCost(effectiveItem, cfg);
+        if(Math.abs(newPostage - (s.postage||0)) > 0.004){
+          salesPostageUpdates.set(s.id, {postage:newPostage, profit:+(s.moneyIn-newPostage).toFixed(2)});
+          recalculated++;
+        }
       });
 
       // ── Single batched state update — one re-render instead of hundreds ───────
@@ -611,15 +634,62 @@ export default function App(){
           return [...newSoldItems, ...newListedItems, ...updated];
         });
       }
-      if(newSales.length){
-        setSales(p => [...newSales, ...p.filter(s=>!salesToReplace.has(s.ebayOrderId))]);
+      if(newSales.length || salesPostageUpdates.size){
+        setSales(p => {
+          const updated = p.map(s => salesPostageUpdates.has(s.id) ? {...s,...salesPostageUpdates.get(s.id)} : s);
+          return [...newSales, ...updated.filter(s=>!salesToReplace.has(s.ebayOrderId))];
+        });
       }
 
+      // ── Deep lookup: sales whose item has already sold (so it dropped out of
+      // eBay's active-listings response entirely) and still has no real shipping
+      // data on record. GetItem works regardless of sold/active status, so this
+      // is what actually fixes postage on sales logged a while ago. ──────────
+      let deepFixed = 0;
+      const needsDeepLookup = sales.filter(s => {
+        if(!s.fromEbaySync || salesPostageUpdates.has(s.id)) return false;
+        const it = items.find(x=>x.id===s.itemId);
+        if(!it || it.status!=='sold' || !it.ebayItemId || it.fulfillmentPolicyId) return false;
+        return it.sellerPostageCost==null || it.sellerPostageCost===+(cfg.postage||0);
+      });
+      const allDeepItemIds = [...new Set(needsDeepLookup.map(s=>items.find(x=>x.id===s.itemId)?.ebayItemId).filter(Boolean))];
+      const deepItemIds = allDeepItemIds.slice(0,15);
+      if(deepItemIds.length){
+        try {
+          const lookupRes  = await fetch('/api/ebay/sync?userId='+encodeURIComponent(userId)+'&itemShippingLookup='+deepItemIds.join(','));
+          const lookupData = await lookupRes.json();
+          const shipping = lookupData.shipping||{};
+          const itemPatches = new Map();
+          const salePatchesDeep = new Map();
+          needsDeepLookup.forEach(s=>{
+            const it = items.find(x=>x.id===s.itemId);
+            const info = it ? shipping[it.ebayItemId] : null;
+            if(!it || !info) return;
+            const patch = {};
+            if(info.fulfillmentPolicyId) patch.fulfillmentPolicyId = info.fulfillmentPolicyId;
+            if(info.shippingServiceCost!=null) patch.sellerPostageCost = info.shippingServiceCost;
+            if(info.shippingServiceName) patch.shippingServiceName = info.shippingServiceName;
+            if(!Object.keys(patch).length) return;
+            itemPatches.set(it.id, patch);
+            const newPostage = resolvePostageCost({...it,...patch}, cfg);
+            if(Math.abs(newPostage-(s.postage||0))>0.004){
+              salePatchesDeep.set(s.id, {postage:newPostage, profit:+(s.moneyIn-newPostage).toFixed(2)});
+              deepFixed++;
+            }
+          });
+          if(itemPatches.size)     setItems(p=>p.map(x=>itemPatches.has(x.id)?{...x,...itemPatches.get(x.id)}:x));
+          if(salePatchesDeep.size) setSales(p=>p.map(s=>salePatchesDeep.has(s.id)?{...s,...salePatchesDeep.get(s.id)}:s));
+        } catch(e){ console.error('[eBay sync] deep shipping lookup failed:', e.message); }
+      }
+
+      const totalPostageFixed = recalculated + deepFixed;
       const parts = [];
-      if(synced>0)     parts.push(synced+' sale'+(synced!==1?'s':'')+' synced');
-      if(created>0)    parts.push(created+' past sale'+(created!==1?'s':'')+' imported');
-      if(imported>0)   parts.push(imported+' active listing'+(imported!==1?'s':'')+' imported');
-      if(backfilled>0) parts.push(backfilled+' listing'+(backfilled!==1?'s':'')+' updated');
+      if(synced>0)             parts.push(synced+' sale'+(synced!==1?'s':'')+' synced');
+      if(created>0)            parts.push(created+' past sale'+(created!==1?'s':'')+' imported');
+      if(imported>0)           parts.push(imported+' active listing'+(imported!==1?'s':'')+' imported');
+      if(backfilled>0)         parts.push(backfilled+' listing'+(backfilled!==1?'s':'')+' updated');
+      if(totalPostageFixed>0)  parts.push(totalPostageFixed+' sale'+(totalPostageFixed!==1?'s':'')+' postage corrected');
+      if(allDeepItemIds.length>deepItemIds.length) parts.push('more to fix next sync');
       let msg = (label?label+' — ':'') + (parts.length ? '✓ '+parts.join(', ') : 'No new sales or listings found on eBay');
       if(data.activeListingsError){ msg += (parts.length?' — ':'') + '⚠ Active listings: '+data.activeListingsError; hadError=true; }
       if(data.truncated){ msg += ` (more than ${data.ordersFetched} orders exist — run again to continue importing)`; hadError=true; }
@@ -748,17 +818,67 @@ export default function App(){
   // ── Free eBay listings tracker — counts listings created this calendar month ──
   // Counts by listedAt date regardless of current status, since eBay's free
   // allowance is consumed at point of listing creation, not by what's still active.
+  // GTC (Good 'Til Cancelled) listings auto-renew roughly every 30 days, and each
+  // renewal also consumes a free-listing credit — so any GTC listing still active
+  // that was originally created in an earlier month is counted again here too,
+  // as an approximation of "it renewed at least once this month."
+  const thisMonthKey = monthKey(new Date());
   const listingsThisMonth = useMemo(() => {
-    const thisKey = monthKey(new Date());
-    return items.filter(it => {
-      if(!it.listedAt && !it.ebayItemId) return false; // never listed on eBay
+    let count = 0;
+    items.forEach(it => {
+      if(!it.listedAt && !it.ebayItemId) return; // never listed on eBay
       const d = parseEnGBDate(it.listedAt) || parseEnGBDate(it.dateStr);
-      if(!d) return false;
-      return monthKey(d) === thisKey;
-    }).length;
-  },[items]);
+      if(!d) return;
+      const createdThisMonth = monthKey(d) === thisMonthKey;
+      if(createdThisMonth) count++;
+      else if(it.isGTC && it.status==='listed') count++; // still-active GTC listing from an earlier month — renewed this month
+    });
+    return count;
+  },[items,thisMonthKey]);
   const freeListingsRemaining = Math.max(0, (cfg.freeListingsPerMonth||0) - listingsThisMonth);
   const freeListingsExceeded  = listingsThisMonth >= (cfg.freeListingsPerMonth||0);
+
+  const listingFeesCard = (
+    <div style={{...S.tWrap,padding:'16px 18px',marginBottom:14,borderRadius:'var(--radius)',border:'1px solid var(--border)',background:'var(--surface)'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12,flexWrap:'wrap'}}>
+        <div>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>🏷 eBay listing fees</div>
+          {cfg.freeListingsPerMonth>0
+            ? <div style={{fontSize:12,color:freeListingsExceeded?'var(--amber)':'var(--text-2)'}}>
+                {listingsThisMonth} of {cfg.freeListingsPerMonth} free listings used this month
+                {freeListingsExceeded
+                  ? ` — now paying ~${sym}${(cfg.feePerListing||0).toFixed(2)} per new listing`
+                  : ` — ${freeListingsRemaining} free listing${freeListingsRemaining!==1?'s':''} remaining`}
+              </div>
+            : <div style={{fontSize:12,color:'var(--text-3)'}}>No free listing allowance set — listings tracked this month: {listingsThisMonth}</div>
+          }
+          <div style={{fontSize:10,color:'var(--text-3)',marginTop:3}}>Counts new listings plus GTC listings renewing this month, by calendar month</div>
+        </div>
+        <button style={{...S.mBtn,fontSize:11,padding:'5px 10px'}} onClick={()=>{
+          setFeeFormFree(String(cfg.freeListingsPerMonth||''));
+          setFeeFormCost(String(cfg.feePerListing||''));
+          setEditListingFees(p=>!p);
+        }}>{editListingFees?'▲ Hide':'⚙️ Set allowance'}</button>
+      </div>
+      {editListingFees&&(
+        <div style={{display:'flex',gap:10,alignItems:'flex-end',flexWrap:'wrap',marginTop:12,paddingTop:12,borderTop:'1px solid var(--border)'}}>
+          <div style={S.field}>
+            <label style={{...S.fLbl,fontSize:11}}>Free listings per month</label>
+            <input style={{...S.fInp,width:140}} type="number" step="1" min="0" value={feeFormFree} onChange={e=>setFeeFormFree(e.target.value)} placeholder="e.g. 250"/>
+          </div>
+          <div style={S.field}>
+            <label style={{...S.fLbl,fontSize:11}}>Cost per extra listing ({sym})</label>
+            <input style={{...S.fInp,width:140}} type="number" step="0.01" min="0" value={feeFormCost} onChange={e=>setFeeFormCost(e.target.value)} placeholder="e.g. 0.35"/>
+          </div>
+          <button style={S.mBtnP} onClick={()=>{
+            setCfg(p=>({...p,freeListingsPerMonth:Number(feeFormFree)||0,feePerListing:Number(feeFormCost)||0}));
+            setEditListingFees(false);
+          }}>Save</button>
+          <div style={{fontSize:10,color:'var(--text-3)',width:'100%'}}>Check My eBay → Subscriptions for your exact allowance — this isn't pulled live from eBay.</div>
+        </div>
+      )}
+    </div>
+  );
 
   // sell form computed
   const spNum = parseFloat(soldP)||0;
@@ -862,14 +982,22 @@ export default function App(){
 
   const confirmBundleSell=()=>{
     if(!bundleSell||bundleSell.length<2) return;
+    const usingTotal = parseFloat(bundleTotalMoneyIn)>0;
     const lines=bundleSell.map(row=>{
-      const sp=parseFloat(row.soldPrice)||0; const mi=parseFloat(row.moneyIn)||0;
+      const sp=parseFloat(row.soldPrice)||0; const mi=usingTotal?0:(parseFloat(row.moneyIn)||0);
       const n=Math.min(iq(row.item),Math.max(1,parseInt(row.sellQty,10)||1));
-      return{...row,sp,mi,n,fees:feesFromInputs(sp,mi)};
+      return{...row,sp,mi,n,fees:0};
     });
+    if(usingTotal){
+      const totalMi = parseFloat(bundleTotalMoneyIn)||0;
+      const miShares = splitPostageAcrossItems(totalMi, lines.map(l=>l.sp));
+      lines.forEach((l,i)=>{ l.mi = miShares[i]||0; l.fees = feesFromInputs(l.sp,l.mi); });
+    } else {
+      lines.forEach(l=>{ l.fees = feesFromInputs(l.sp,l.mi); });
+    }
     for(const {item,sp,mi,n} of lines){
-      if(mi<=0){alert(`Enter money received for: ${item.name}`);return;}
       if(sp<=0){alert(`Enter sale price for: ${item.name}`);return;}
+      if(mi<=0){alert(usingTotal?'Enter the total amount received into your account':`Enter money received for: ${item.name}`);return;}
       if(mi>sp){alert(`Money received cannot exceed sale price for: ${item.name}`);return;}
     }
     const totalPost=parseFloat(bundlePost)||0;
@@ -888,7 +1016,7 @@ export default function App(){
     }));
     setSales(p=>[...newSales,...p]);
     lines.forEach(({item,n})=>setItems(p=>p.map(x=>x.id===item.id?applyAfterSale(x,n):x)));
-    setBundleSell(null);setBundlePost('');setLstSel([]);
+    setBundleSell(null);setBundlePost('');setBundleTotalMoneyIn('');setLstSel([]);
   };
 
   const addSpend=()=>{
@@ -1104,6 +1232,7 @@ export default function App(){
         {tab==='inventory'&&(()=>{
           const counts=Object.fromEntries(cats.map(c=>[c.id,items.filter(it=>it.categoryId===c.id&&it.status==='stock').reduce((s,it)=>s+iq(it),0)]));
           return <>
+            {listingFeesCard}
             <div className="rt-cat-tabs">
               {cats.map(c=>(
                 <button key={c.id} style={{...S.catTab,...(curInvCat===c.id?S.catTabA:{})}} onClick={()=>{setInvCat(c.id);setInvSearch('');setInvTier('all');}}>
@@ -1448,50 +1577,8 @@ export default function App(){
 
         {/* P&L */}
         {tab==='pnl'&&(()=>{
-          const listingFeesCard = (
-            <div style={{...S.tWrap,padding:'16px 18px',marginBottom:16,borderRadius:'var(--radius)',border:'1px solid var(--border)',background:'var(--surface)'}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12,flexWrap:'wrap'}}>
-                <div>
-                  <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>🏷 eBay listing fees</div>
-                  {cfg.freeListingsPerMonth>0
-                    ? <div style={{fontSize:12,color:freeListingsExceeded?'var(--amber)':'var(--text-2)'}}>
-                        {listingsThisMonth} of {cfg.freeListingsPerMonth} free listings used this month
-                        {freeListingsExceeded
-                          ? ` — now paying ~${sym}${(cfg.feePerListing||0).toFixed(2)} per new listing`
-                          : ` — ${freeListingsRemaining} free listing${freeListingsRemaining!==1?'s':''} remaining`}
-                      </div>
-                    : <div style={{fontSize:12,color:'var(--text-3)'}}>No free listing allowance set — listings tracked this month: {listingsThisMonth}</div>
-                  }
-                </div>
-                <button style={{...S.mBtn,fontSize:11,padding:'5px 10px'}} onClick={()=>{
-                  setFeeFormFree(String(cfg.freeListingsPerMonth||''));
-                  setFeeFormCost(String(cfg.feePerListing||''));
-                  setEditListingFees(p=>!p);
-                }}>{editListingFees?'▲ Hide':'⚙️ Set allowance'}</button>
-              </div>
-              {editListingFees&&(
-                <div style={{display:'flex',gap:10,alignItems:'flex-end',flexWrap:'wrap',marginTop:12,paddingTop:12,borderTop:'1px solid var(--border)'}}>
-                  <div style={S.field}>
-                    <label style={{...S.fLbl,fontSize:11}}>Free listings per month</label>
-                    <input style={{...S.fInp,width:140}} type="number" step="1" min="0" value={feeFormFree} onChange={e=>setFeeFormFree(e.target.value)} placeholder="e.g. 250"/>
-                  </div>
-                  <div style={S.field}>
-                    <label style={{...S.fLbl,fontSize:11}}>Cost per extra listing ({sym})</label>
-                    <input style={{...S.fInp,width:140}} type="number" step="0.01" min="0" value={feeFormCost} onChange={e=>setFeeFormCost(e.target.value)} placeholder="e.g. 0.35"/>
-                  </div>
-                  <button style={S.mBtnP} onClick={()=>{
-                    setCfg(p=>({...p,freeListingsPerMonth:Number(feeFormFree)||0,feePerListing:Number(feeFormCost)||0}));
-                    setEditListingFees(false);
-                  }}>Save</button>
-                  <div style={{fontSize:10,color:'var(--text-3)',width:'100%'}}>Check My eBay → Subscriptions for your exact allowance — this isn't pulled live from eBay.</div>
-                </div>
-              )}
-            </div>
-          );
-
-          if(monthlyPL.length===0) return <>{listingFeesCard}<div style={S.empty}><div style={{fontSize:32,marginBottom:8}}>📊</div>No data yet.<br/>Log sales and business spend to see your monthly P&L.</div></>;
+          if(monthlyPL.length===0) return <div style={S.empty}><div style={{fontSize:32,marginBottom:8}}>📊</div>No data yet.<br/>Log sales and business spend to see your monthly P&L.</div>;
           return <>
-            {listingFeesCard}
             <div style={S.tWrap}>
               <table style={{...S.tbl,tableLayout:'auto'}}>
                 <thead><tr>
@@ -1610,7 +1697,11 @@ export default function App(){
 
       {/* Bundle sell */}
       {bundleSell&&(()=>{
-        const lines=bundleSell.map(r=>({sp:parseFloat(r.soldPrice)||0,mi:parseFloat(r.moneyIn)||0}));
+        const usingTotal = parseFloat(bundleTotalMoneyIn)>0;
+        const anyIndividualEntered = bundleSell.some(r=>parseFloat(r.moneyIn)>0);
+        const spList = bundleSell.map(r=>parseFloat(r.soldPrice)||0);
+        const miSplitFromTotal = usingTotal ? splitPostageAcrossItems(parseFloat(bundleTotalMoneyIn)||0, spList) : [];
+        const lines=bundleSell.map((r,i)=>({sp:spList[i],mi:usingTotal?(miSplitFromTotal[i]||0):(parseFloat(r.moneyIn)||0)}));
         const tSp=+lines.reduce((a,l)=>a+l.sp,0).toFixed(2);
         const tMi=+lines.reduce((a,l)=>a+l.mi,0).toFixed(2);
         const tFees=+lines.reduce((a,l)=>a+feesFromInputs(l.sp,l.mi),0).toFixed(2);
@@ -1620,8 +1711,8 @@ export default function App(){
         const bundleSearchResults = bundleSearch.trim()
           ? items.filter(it=>it.status==='listed' && !bundleSell.some(r=>r.item.id===it.id) && it.name.toLowerCase().includes(bundleSearch.trim().toLowerCase())).slice(0,8)
           : [];
-        return <Modal title={`Bundle sale${bundleSell.length?` — ${bundleSell.length} items`:''}`} wide onClose={()=>{setBundleSell(null);setBundlePost('');setBundleSearch('');setLstSel([]);}}>
-          <p style={{fontSize:12,color:'var(--text-2)',marginBottom:8}}>Search and add items from your active listings, then enter each one's sale price and money received. Postage is split proportionally.</p>
+        return <Modal title={`Bundle sale${bundleSell.length?` — ${bundleSell.length} items`:''}`} wide onClose={()=>{setBundleSell(null);setBundlePost('');setBundleSearch('');setBundleTotalMoneyIn('');setLstSel([]);}}>
+          <p style={{fontSize:12,color:'var(--text-2)',marginBottom:8}}>Search and add items from your active listings, then enter each one's sale price. For money received, either fill in each item individually, <strong style={{color:'var(--text-1)'}}>or</strong> enter one total at the bottom and it'll be split proportionally by sale price — whichever you start typing into locks the other, so figures can't be entered twice.</p>
 
           {/* Search & add items */}
           <div style={{position:'relative',marginBottom:14}}>
@@ -1656,13 +1747,26 @@ export default function App(){
                 <button onClick={()=>removeFromBundleSell(row.item.id)} title="Remove from bundle" style={{background:'none',border:'none',color:'var(--text-3)',cursor:'pointer',fontSize:14,padding:'0 0 0 8px',flexShrink:0}}>✕</button>
               </div>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-                <div style={S.field}><label style={{...S.fLbl,fontSize:11}}>Money to account ({sym}) *</label><input style={{...S.fInp,padding:'5px 8px'}} type="number" step="0.01" min="0" value={row.moneyIn} onChange={e=>setBundleSell(p=>p.map((r2,i)=>i===idx?{...r2,moneyIn:e.target.value}:r2))} placeholder="0.00"/></div>
+                <div style={S.field}>
+                  <label style={{...S.fLbl,fontSize:11}}>Money to account ({sym}) {usingTotal?'':'*'}</label>
+                  <input style={{...S.fInp,padding:'5px 8px',opacity:usingTotal?0.5:1}} type="number" step="0.01" min="0" disabled={usingTotal}
+                    value={usingTotal?(miSplitFromTotal[idx]?.toFixed(2)||'0.00'):row.moneyIn}
+                    onChange={e=>setBundleSell(p=>p.map((r2,i)=>i===idx?{...r2,moneyIn:e.target.value}:r2))} placeholder="0.00"/>
+                  {usingTotal&&<div style={{fontSize:10,color:'var(--text-3)',marginTop:2}}>Auto-split from total below</div>}
+                </div>
                 <div style={S.field}><label style={{...S.fLbl,fontSize:11}}>eBay sale price ({sym}) *</label><input style={{...S.fInp,padding:'5px 8px'}} type="number" step="0.01" min="0" value={row.soldPrice} onChange={e=>setBundleSell(p=>p.map((r2,i)=>i===idx?{...r2,soldPrice:e.target.value}:r2))} placeholder="0.00"/></div>
               </div>
               {lines[idx].sp>0&&lines[idx].mi>0&&<div style={{fontSize:11,color:'var(--text-2)',marginTop:4}}>Fees: {fmt(feesFromInputs(lines[idx].sp,lines[idx].mi))}</div>}
             </div>
           ))}
           <div style={S.field}><label style={S.fLbl}>Total postage for whole bundle ({sym})</label><input style={S.fInp} type="number" step="0.01" min="0" value={bundlePost} onChange={e=>setBundlePost(e.target.value)} placeholder="One label — split across items"/></div>
+          <div style={S.field}>
+            <label style={S.fLbl}>OR — total money received into your account ({sym})</label>
+            <input style={{...S.fInp,opacity:anyIndividualEntered?0.5:1}} type="number" step="0.01" min="0" disabled={anyIndividualEntered}
+              value={bundleTotalMoneyIn} onChange={e=>setBundleTotalMoneyIn(e.target.value)}
+              placeholder={anyIndividualEntered?'Clear individual amounts above to use this instead':'e.g. 24.50 — split automatically by sale price'}/>
+            {anyIndividualEntered&&<div style={{fontSize:10,color:'var(--text-3)',marginTop:2}}>Disabled because individual amounts are filled in above</div>}
+          </div>
           {(tMi>0||tPost>0)&&<div style={{background:'var(--surface-2)',borderRadius:6,padding:'10px 12px',fontSize:12}}>
             {[[`Total sale price`,fmt(tSp),null],[`Total received`,fmt(tMi),'var(--accent)'],[`Total fees`,`−${fmt(tFees)}`,'var(--red)'],[`Bundle postage`,`−${fmt(tPost)}`,'var(--red)'],savings>0?[`Postage saved vs separate`,fmt(savings),'var(--green)']:null].filter(Boolean).map(([l,v,c])=>(
               <div key={l} style={{display:'flex',justifyContent:'space-between',padding:'3px 0',color:'var(--text-2)'}}><span>{l}</span><span style={c?{color:c}:{}}>{v}</span></div>
@@ -1670,7 +1774,7 @@ export default function App(){
             {tMi>0&&<div style={{display:'flex',justifyContent:'space-between',padding:'6px 0 3px',borderTop:'1px solid var(--border)',marginTop:4,fontWeight:700,fontSize:13}}><span>Total profit</span><span style={{color:tProfit>=0?'var(--green)':'var(--red)'}}>{fmt(tProfit)}</span></div>}
           </div>}
           <div style={S.mActs}>
-            <button style={S.mBtn} onClick={()=>{setBundleSell(null);setBundlePost('');setBundleSearch('');setLstSel([]);}}>Cancel</button>
+            <button style={S.mBtn} onClick={()=>{setBundleSell(null);setBundlePost('');setBundleSearch('');setBundleTotalMoneyIn('');setLstSel([]);}}>Cancel</button>
             <button style={{...S.mBtnP,opacity:bundleSell.length<2?0.5:1,cursor:bundleSell.length<2?'not-allowed':'pointer'}} disabled={bundleSell.length<2} onClick={confirmBundleSell}>
               {bundleSell.length<2?`Add ${2-bundleSell.length} more item${2-bundleSell.length!==1?'s':''}`:'Log bundle sale'}
             </button>
